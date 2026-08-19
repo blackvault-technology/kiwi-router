@@ -123,7 +123,7 @@ export const models = pgTable("models", {
   isEnabled: boolean("is_enabled").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, table => [uniqueIndex("models_slug_idx").on(table.slug), index("models_provider_idx").on(table.providerId)]);
+}, table => [uniqueIndex("models_slug_provider_upstream_idx").on(table.slug, table.providerId, table.upstreamId), index("models_slug_priority_idx").on(table.slug), index("models_provider_idx").on(table.providerId)]);
 
 export const requestLogs = pgTable("request_logs", {
   id: bigserial("id", { mode: "number" }).primaryKey(),

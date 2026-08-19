@@ -209,3 +209,11 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 - [ ] Fix Google OAuth callback/session restoration so authenticated users land in the dashboard rather than the public landing page.
 - [x] Add v0.1.2 API performance and resilience improvements without changing the public API contract.
 - [x] Add regression coverage for Google session loading, authenticated redirect behavior, API resilience, and the v0.1.2 release surface.
+
+
+## v0.1.2 Playground and multi-provider routing
+
+- [x] Fix Playground handling of HTML/non-JSON responses and show actionable API errors instead of `Unexpected token '<'`.
+- [x] Remove provider names and provider-specific metadata from user-facing model lists while preserving internal route selection.
+- [x] Add model-based multi-provider route configuration with multiple providers per model, priority ordering, health-aware failover, and founder management coverage.
+- [x] Add regression coverage and validate the complete v0.1.2 release after the Playground and routing changes.

@@ -169,12 +169,14 @@ export async function getApiKeyOwner(plainKey: string) {
 
 export async function listModels(enabledOnly = true) {
   const query = getDb().select({ model: models, provider: providers }).from(models).innerJoin(providers, eq(models.providerId, providers.id));
-  return enabledOnly ? query.where(and(eq(models.isEnabled, true), eq(providers.isEnabled, true))).orderBy(models.slug) : query.orderBy(models.slug);
+  const rows = enabledOnly ? await query.where(and(eq(models.isEnabled, true), eq(providers.isEnabled, true))).orderBy(models.slug) : await query.orderBy(models.slug);
+  const seen = new Set<string>();
+  return rows.filter(row => { if (seen.has(row.model.slug)) return false; seen.add(row.model.slug); return true; });
 }
 
 export async function getGatewayRoute(slug: string) {
   return (await getDb().select({ model: models, provider: providers }).from(models).innerJoin(providers, eq(models.providerId, providers.id))
-    .where(and(eq(models.slug, slug), eq(models.isEnabled, true), eq(providers.isEnabled, true))).orderBy(sql`COALESCE((${models.routingConfig}->>'priority')::int, 100)`).limit(1))[0];
+    .where(and(eq(models.slug, slug), eq(models.isEnabled, true), eq(providers.isEnabled, true))).orderBy(sql`${providers.isHealthy} DESC`, sql`COALESCE((${models.routingConfig}->>'priority')::int, 100) ASC`, models.id).limit(1))[0];
 }
 
 export async function getGatewayFallbackRoute(slug: string, providerId: number) {
