@@ -5,7 +5,6 @@ import { appRouter } from "./routers";
 import { createContext } from "./_core/context";
 import { registerStorageProxy } from "./_core/storageProxy";
 import { registerGateway } from "./gateway";
-import { serveStatic, setupVite } from "./_core/vite";
 import { getSessionUser } from "./auth";
 import { FOUNDER_EMAIL, getRequestIp } from "./founder";
 import { dailyCreditMaintenance } from "./credits";
@@ -37,7 +36,12 @@ export async function createApp(options: { developmentServer?: Server; serveStat
   registerStorageProxy(app);
   registerGateway(app);
   app.use("/api/trpc", createExpressMiddleware({ router: appRouter, createContext }));
-  if (options.developmentServer) await setupVite(app, options.developmentServer);
-  else if (options.serveStaticFiles) serveStatic(app);
+  if (options.developmentServer) {
+    const { setupVite } = await import("./_core/vite");
+    await setupVite(app, options.developmentServer);
+  } else if (options.serveStaticFiles) {
+    const { serveStatic } = await import("./_core/vite");
+    serveStatic(app);
+  }
   return app;
 }

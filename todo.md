@@ -46,3 +46,4 @@
 - [ ] Push the Vercel build-output fix to the linked GitHub repository and trigger a new Vercel deployment.
 - [ ] Validate the redeployed Vercel site: `/` serves the SPA, `/about` rewrites to the SPA, and `/api/v1/health` returns a successful API response.
 - [x] Reserve `/api/*` for Vercel serverless functions before applying the SPA fallback rewrite.
+- [ ] Resolve the Vercel serverless function invocation failure and verify `/api/v1/health` returns JSON with status 200 in production.
