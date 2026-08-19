@@ -84,6 +84,9 @@
 - [x] Add responsive Terms of Service, Privacy Policy, Acceptable Use, and Cookie Policy pages with public navigation links.
 - [x] Verify the deployed production landing and provider rail at a mobile viewport and record the result.
 - [ ] Run responsive QA across authenticated Overview, Playground, Models, API Keys, Analytics, and Admin views, fixing any remaining layout or interaction issues.
-- [ ] Add a public real-time API status contract at `/api/status` that reports gateway, database, and configured-provider health without exposing secrets.
-- [ ] Build a responsive public `/status` page with live component status, latency, update time, API links, and safe degraded-state handling.
-- [ ] Add automated coverage and production verification for the new API status endpoint and status page.
+- [x] Add a public real-time API status contract at `/api/status` that reports gateway, database, and configured-provider health without exposing secrets.
+- [x] Build a responsive public `/status` page with live component status, latency, update time, API links, and safe degraded-state handling.
+- [x] Add automated coverage and production verification for the new API status endpoint and status page.
+- [x] Add regression coverage for the `/api/status` public JSON contract, including safe component fields and no secret leakage.
+- [x] Add frontend regression coverage for the `/status` route’s live component, latency, timestamp, API-link, and degraded/error fallback rendering.
+- [x] Add render-level frontend coverage for successful and unavailable `/status` states before final status-feature completion.

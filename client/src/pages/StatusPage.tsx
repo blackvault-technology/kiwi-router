@@ -1,5 +1,5 @@
 import { AlertTriangle, CheckCircle2, CircleDotDashed, Clock3, Database, ExternalLink, Gauge, RefreshCw, ServerCog, WifiOff } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Link } from "wouter";
 
 type StatusLevel = "operational" | "degraded";
@@ -9,7 +9,7 @@ type Snapshot = { status: StatusLevel; service: string; checkedAt: string; compo
 const labels: Record<string, typeof Database> = { database: Database, gateway: ServerCog, models: Gauge, providers: CircleDotDashed };
 const apiOrigin = "https://kiwi-router.vercel.app";
 
-function normalizeStatus(payload: unknown): Snapshot | null {
+export function normalizeStatus(payload: unknown): Snapshot | null {
   if (!payload || typeof payload !== "object") return null;
   const data = payload as Partial<Snapshot>;
   if ((data.status !== "operational" && data.status !== "degraded") || !Array.isArray(data.components) || typeof data.checkedAt !== "string") return null;
@@ -17,10 +17,10 @@ function normalizeStatus(payload: unknown): Snapshot | null {
   return { status: data.status, service: typeof data.service === "string" ? data.service : "cloudhug-kiwi-router", checkedAt: data.checkedAt, components };
 }
 
-export function StatusPage() {
-  const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+export function StatusPage({ initialSnapshot, initialError = false }: { initialSnapshot?: Snapshot | null; initialError?: boolean } = {}) {
+  const [snapshot, setSnapshot] = useState<Snapshot | null>(initialSnapshot ?? null);
+  const [loading, setLoading] = useState(!initialSnapshot && !initialError);
+  const [error, setError] = useState(initialError);
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
