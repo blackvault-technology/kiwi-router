@@ -125,9 +125,9 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 - [x] Add provider-scoped credential profiles with masked metadata, rotation, validation, and safe revocation.
 - [x] Add provider connection health history with latency, status, and last-success timestamps.
 - [ ] Add provider request-header and protocol configuration for OpenAI-compatible, Anthropic, and Gemini adapters.
-- [ ] Add automatic model catalog fetching with preview, deduplication, and disabled-by-default review state.
+- [x] Add automatic model catalog fetching with preview, deduplication, and disabled-by-default review state.
 - [x] Add manual model-entry workflow with context window, pricing, and route validation; capability metadata remains a follow-up.
-- [ ] Add bulk model enable, disable, archive, and restore-safe review actions.
+- [x] Add bulk model enable, disable, archive, and restore-safe review actions.
 - [ ] Add model capability metadata for streaming, vision, tools, JSON mode, and reasoning.
 - [ ] Add model route priority, fallback order, and provider failover controls.
 - [x] Add per-model credit pricing and activation-time pricing controls; cost-estimate preview remains a follow-up.

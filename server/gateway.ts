@@ -205,15 +205,16 @@ export function registerGateway(app: Express) {
     if (!runtimeCredential) return respondError(res, 503, `The ${route.provider.displayName} provider is not configured`, "provider_not_configured");
 
     try {
-      const isAnthropic = route.provider.slug === "anthropic";
+      const routing = (route.model.routingConfig ?? {}) as { protocol?: "openai" | "anthropic" | "gemini"; headers?: Record<string, string> };
+      const isAnthropic = routing.protocol === "anthropic" || route.provider.slug === "anthropic";
       const baseUrl = assertSafeUpstreamUrl(route.provider.baseUrl);
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 60_000);
       const upstream = await fetch(`${baseUrl.toString().replace(/\/$/, "")}${isAnthropic ? "/messages" : "/chat/completions"}`, {
         method: "POST",
         headers: isAnthropic
-          ? { "Content-Type": "application/json", "x-api-key": runtimeCredential, "anthropic-version": "2023-06-01" }
-          : { "Content-Type": "application/json", Authorization: `Bearer ${runtimeCredential}` },
+          ? { "Content-Type": "application/json", "x-api-key": runtimeCredential, "anthropic-version": "2023-06-01", ...(routing.headers ?? {}) }
+          : { "Content-Type": "application/json", Authorization: `Bearer ${runtimeCredential}`, ...(routing.headers ?? {}) },
         body: JSON.stringify(isAnthropic ? anthopicPayload(body, route.model.upstreamId) : { ...body, model: route.model.upstreamId, ...(body.stream ? { stream_options: { ...body.stream_options, include_usage: true } } : {}) }),
         signal: controller.signal,
       });

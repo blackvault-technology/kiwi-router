@@ -47,6 +47,10 @@ describe("deep founder console contracts", () => {
     expect(router).toContain("adjustUserCredits: adminProcedure");
     expect(ui).toContain("Scoped rate-limit policy presets");
     expect(ui).toContain("Provider uptime");
+    expect(router).toContain("bulkModelLifecycle: adminProcedure");
+    expect(router).toContain("protocol: z.enum([\"openai\", \"anthropic\", \"gemini\"])");
+    expect(ui).toContain("OpenAI-compatible");
+    expect(ui).toContain("Enable all");
   });
 });
 

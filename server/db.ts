@@ -148,16 +148,18 @@ export async function getGatewayRoute(slug: string) {
     .where(and(eq(models.slug, slug), eq(models.isEnabled, true), eq(providers.isEnabled, true))).limit(1))[0];
 }
 
-export async function createModel(input: { slug: string; displayName: string; providerId: number; upstreamId: string; contextWindow: number; inputPrice: string; outputPrice: string; creditCostPer1kTokens: string; isEnabled: boolean }) {
-  return (await getDb().insert(models).values({ ...input, routingConfig: { protocol: "openai" } }).returning())[0]!;
+export type ModelRoutingConfig = { protocol: "openai" | "anthropic" | "gemini"; priority: number; fallbackProviderId?: number; capabilities: { streaming: boolean; vision: boolean; tools: boolean; jsonMode: boolean; reasoning: boolean }; headers?: Record<string, string> };
+
+export async function createModel(input: { slug: string; displayName: string; providerId: number; upstreamId: string; contextWindow: number; inputPrice: string; outputPrice: string; creditCostPer1kTokens: string; isEnabled: boolean; routingConfig?: ModelRoutingConfig }) {
+  return (await getDb().insert(models).values({ ...input, routingConfig: input.routingConfig ?? { protocol: "openai", priority: 100, capabilities: { streaming: true, vision: false, tools: false, jsonMode: false, reasoning: false } } }).returning())[0]!;
 }
 
-export async function updateModel(id: number, input: { isEnabled?: boolean; displayName?: string; upstreamId?: string; creditCostPer1kTokens?: string }) {
+export async function updateModel(id: number, input: { isEnabled?: boolean; displayName?: string; upstreamId?: string; creditCostPer1kTokens?: string; routingConfig?: ModelRoutingConfig }) {
   return (await getDb().update(models).set({ ...input, updatedAt: new Date() }).where(eq(models.id, id)).returning())[0];
 }
 
 export async function listProviders() {
-  return getDb().select({ id: providers.id, slug: providers.slug, displayName: providers.displayName, baseUrl: providers.baseUrl, isHealthy: providers.isHealthy, isEnabled: providers.isEnabled, isConfigured: sql<boolean>`(${providers.encryptedApiKey} IS NOT NULL OR EXISTS (SELECT 1 FROM provider_credentials pc WHERE pc.provider_id = ${providers.id} AND pc.is_active = true))` }).from(providers).orderBy(providers.displayName);
+  return getDb().select({ id: providers.id, slug: providers.slug, displayName: providers.displayName, baseUrl: providers.baseUrl, protocol: providers.protocol, requestHeaders: providers.requestHeaders, isHealthy: providers.isHealthy, isEnabled: providers.isEnabled, isConfigured: sql<boolean>`(${providers.encryptedApiKey} IS NOT NULL OR EXISTS (SELECT 1 FROM provider_credentials pc WHERE pc.provider_id = ${providers.id} AND pc.is_active = true))` }).from(providers).orderBy(providers.displayName);
 }
 
 async function resolveProviderCredential(providerId: number) {
@@ -219,7 +221,7 @@ export async function setApiKeyProviderAccess(input: { apiKeyId: string; provide
   return (await getDb().insert(apiKeyProviderAccess).values(input).returning())[0];
 }
 
-export async function saveProvider(input: { slug: string; displayName: string; baseUrl: string; encryptedApiKey?: string; isEnabled: boolean }) {
+export async function saveProvider(input: { slug: string; displayName: string; baseUrl: string; protocol?: string; requestHeaders?: Record<string, string>; encryptedApiKey?: string; isEnabled: boolean }) {
   const existing = (await getDb().select().from(providers).where(eq(providers.slug, input.slug)).limit(1))[0];
   const values = { ...input, updatedAt: new Date() };
   if (existing) return (await getDb().update(providers).set(values).where(eq(providers.id, existing.id)).returning())[0]!;
@@ -414,6 +416,26 @@ export async function setStripeCustomerId(userId: number, stripeCustomerId: stri
   await getDb().update(users).set({ stripeCustomerId, updatedAt: new Date() }).where(eq(users.id, userId));
 }
 
+export async function previewProviderModels(providerId: number) {
+  const provider = (await getDb().select().from(providers).where(eq(providers.id, providerId)).limit(1))[0];
+  if (!provider) throw new Error("Provider not found");
+  if (provider.slug === "anthropic" || provider.slug === "gemini") return { ok: true, mode: "manual" as const, statusCode: null, detail: "This provider uses manual model routes", models: [] as Array<{ upstreamId: string; displayName: string; alreadyExists: boolean }> };
+  const activeCredential = await resolveProviderCredential(providerId);
+  if (!activeCredential) return { ok: false, mode: "automatic" as const, statusCode: null, detail: "Configure an upstream provider key before discovery", models: [] as Array<{ upstreamId: string; displayName: string; alreadyExists: boolean }> };
+  const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 8_000);
+  try {
+    const response = await fetch(`${provider.baseUrl.replace(/\/$/, "")}/models`, { headers: { Authorization: `Bearer ${decryptSecret(activeCredential.encryptedApiKey)}` }, signal: controller.signal });
+    if (!response.ok) return { ok: false, mode: "automatic" as const, statusCode: response.status, detail: "Provider rejected model discovery", models: [] as Array<{ upstreamId: string; displayName: string; alreadyExists: boolean }> };
+    const payload = await response.json() as { data?: unknown };
+    const discovered = Array.isArray(payload.data) ? payload.data.filter((item): item is { id: string } => typeof item === "object" && item !== null && typeof (item as { id?: unknown }).id === "string" && Boolean((item as { id: string }).id)) : [];
+    const unique = Array.from(new Map(discovered.map(item => [item.id, item])).values());
+    const existing = await getDb().select({ upstreamId: models.upstreamId }).from(models).where(eq(models.providerId, provider.id));
+    const existingIds = new Set(existing.map(item => item.upstreamId));
+    return { ok: true, mode: "automatic" as const, statusCode: response.status, detail: "Catalog preview ready", models: unique.map(item => ({ upstreamId: item.id, displayName: item.id, alreadyExists: existingIds.has(item.id) })) };
+  } catch { return { ok: false, mode: "automatic" as const, statusCode: null, detail: "Provider did not complete model discovery", models: [] as Array<{ upstreamId: string; displayName: string; alreadyExists: boolean }> }; }
+  finally { clearTimeout(timeout); }
+}
+
 export async function syncProviderModels(providerId: number) {
   const provider = (await getDb().select().from(providers).where(eq(providers.id, providerId)).limit(1))[0];
   if (!provider) throw new Error("Provider not found");
@@ -492,6 +514,12 @@ export async function archiveProvider(providerId: number) {
 /** Archives a model route by disabling it, retaining its historic usage and ledger references. */
 export async function archiveModel(modelId: number) {
   const saved = (await getDb().update(models).set({ isEnabled: false, updatedAt: new Date() }).where(eq(models.id, modelId)).returning())[0];
+  if (!saved) throw new Error("Model not found");
+  return saved;
+}
+
+export async function restoreModel(modelId: number) {
+  const saved = (await getDb().update(models).set({ isEnabled: true, updatedAt: new Date() }).where(eq(models.id, modelId)).returning())[0];
   if (!saved) throw new Error("Model not found");
   return saved;
 }

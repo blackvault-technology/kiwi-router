@@ -52,6 +52,8 @@ export const providers = pgTable("providers", {
   slug: varchar("slug", { length: 50 }).notNull(),
   displayName: varchar("display_name", { length: 100 }).notNull(),
   baseUrl: text("base_url").notNull(),
+  protocol: varchar("protocol", { length: 24 }).notNull().default("openai"),
+  requestHeaders: jsonb("request_headers").notNull().default({}),
   encryptedApiKey: text("encrypted_api_key"),
   isHealthy: boolean("is_healthy").notNull().default(false),
   isEnabled: boolean("is_enabled").notNull().default(true),
