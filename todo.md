@@ -224,3 +224,11 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 - [ ] Diagnose and fix production `/api/v1/chat/completions` returning HTTP 502.
 - [x] Add production-shaped regression coverage for provider route, credential, upstream response, timeout, and safe error handling.
 - [x] Document the separate Jiro CLI/source-quality issue without treating it as a Kiwi Router defect.
+
+
+## Mini OmniRoute founder setup
+
+- [x] Design a guided provider setup wizard with clear progress, validation, and safe recovery states.
+- [x] Add step-by-step provider/API-key/model discovery and manual model setup with security-preserving confirmations.
+- [x] Add model-level multi-provider route configuration, priority/fallback testing, and publish-to-users controls.
+- [x] Add responsive usability and regression coverage for the complete Mini OmniRoute admin workflow.
