@@ -1,13 +1,16 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { encryptSecret } from "./crypto";
-import { banUserAccess, createAnnouncement, createApiKey, createModel, createUser, getAnalytics, getCreditEconomy, getOverview, getRateLimitSettings, getUserByEmail, getUserForensics, listAnnouncements, listApiKeys, listModels, listProviders, listUsers, recordLogin, revokeApiKey, saveProvider, saveRateLimits, seedDemoData, setAnnouncementActive, setGlobalApiEnabled, setUserDisabled, syncProviderModels, updateModel } from "./db";
+import { banUserAccess, clearLoginFailures, consumeAuthToken, createAnnouncement, createApiKey, createAuthToken, createModel, createUser, getAnalytics, getCreditEconomy, getOverview, getRateLimitSettings, getUserByEmail, getUserById, getUserForensics, markEmailVerified, listAnnouncements, listApiKeys, listModels, listProviders, listUsers, recordFailedLogin, recordLogin, recordSecurityEvent, revokeApiKey, saveProvider, saveRateLimits, seedDemoData, setAnnouncementActive, setGlobalApiEnabled, setUserDisabled, syncProviderModels, updateModel, updatePasswordAndRevokeSessions } from "./db";
 import { endSession, hashApiKey, hashPassword, startSession, toPublicUser, verifyPassword } from "./auth";
 import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { addCredits, creditSummary } from "./credits";
 import { getRequestIp } from "./founder";
 import { CREDIT_PACKS } from "./creditPacks";
 import { createCreditCheckout } from "./stripeCredits";
+import { sendPasswordResetEmail, sendVerificationEmail } from "./email";
+import { enforceAuthRateLimits } from "./security";
+import { assertSafeUpstreamUrl } from "./security";
 
 const emailSchema = z.string().trim().email().max(320);
 const passwordSchema = z.string().min(10, "Use at least 10 characters").max(128);
@@ -16,18 +19,75 @@ export const appRouter = router({
   auth: router({
     me: publicProcedure.query(({ ctx }) => ctx.user ? toPublicUser(ctx.user) : null),
     register: publicProcedure.input(z.object({ name: z.string().trim().min(2).max(100), email: emailSchema, password: passwordSchema })).mutation(async ({ input, ctx }) => {
+      const ipAddress = getRequestIp(ctx.req.headers);
+      await enforceAuthRateLimits({ action: "register", email: input.email, ipAddress });
       if (await getUserByEmail(input.email)) throw new TRPCError({ code: "CONFLICT", message: "An account with this email already exists" });
       const user = await createUser({ name: input.name, email: input.email, passwordHash: await hashPassword(input.password) });
+      const token = await createAuthToken({ userId: user.id, email: user.email, purpose: "email_verify", requestIp: ipAddress, expiresInMs: 30 * 60_000 });
+      await sendVerificationEmail(ctx.req, user.email, token);
+      await recordSecurityEvent({ eventType: "registration_created", userId: user.id, ipAddress });
+      return { email: user.email, requiresEmailVerification: true };
+    }),
+    verifyEmail: publicProcedure.input(z.object({ token: z.string().min(32).max(256) })).mutation(async ({ input, ctx }) => {
+      const ipAddress = getRequestIp(ctx.req.headers);
+      await enforceAuthRateLimits({ action: "verify", email: hashApiKey(input.token), ipAddress });
+      const token = await consumeAuthToken({ rawToken: input.token, purpose: "email_verify" });
+      if (!token?.userId) throw new TRPCError({ code: "BAD_REQUEST", message: "This verification link is invalid or expired" });
+      const user = await markEmailVerified(token.userId);
+      if (!user || user.isDisabled) throw new TRPCError({ code: "FORBIDDEN", message: "Account access is unavailable" });
       await startSession(ctx.res, user);
-      await recordLogin(user.id, getRequestIp(ctx.req.headers), ctx.req.header("user-agent") ? hashApiKey(ctx.req.header("user-agent")!) : undefined);
+      await recordLogin(user.id, ipAddress, ctx.req.header("user-agent") ? hashApiKey(ctx.req.header("user-agent")!) : undefined);
+      await recordSecurityEvent({ eventType: "email_verified", userId: user.id, ipAddress });
       return toPublicUser(user);
     }),
-    login: publicProcedure.input(z.object({ email: emailSchema, password: z.string().min(1) })).mutation(async ({ input, ctx }) => {
+    resendVerification: publicProcedure.input(z.object({ email: emailSchema })).mutation(async ({ input, ctx }) => {
+      const ipAddress = getRequestIp(ctx.req.headers);
+      await enforceAuthRateLimits({ action: "verify", email: input.email, ipAddress });
       const user = await getUserByEmail(input.email);
-      if (!user || !(await verifyPassword(input.password, user.passwordHash)) || user.isDisabled) throw new TRPCError({ code: "UNAUTHORIZED", message: "Email or password is incorrect" });
+      if (user && !user.emailVerifiedAt && !user.isDisabled) {
+        const token = await createAuthToken({ userId: user.id, email: user.email, purpose: "email_verify", requestIp: ipAddress, expiresInMs: 30 * 60_000 });
+        await sendVerificationEmail(ctx.req, user.email, token);
+        await recordSecurityEvent({ eventType: "verification_resent", userId: user.id, ipAddress });
+      }
+      return { success: true };
+    }),
+    login: publicProcedure.input(z.object({ email: emailSchema, password: z.string().min(1).max(128) })).mutation(async ({ input, ctx }) => {
+      const ipAddress = getRequestIp(ctx.req.headers);
+      await enforceAuthRateLimits({ action: "login", email: input.email, ipAddress });
+      const user = await getUserByEmail(input.email);
+      const locked = user?.lockedUntil && user.lockedUntil > new Date();
+      if (!user || locked || !(await verifyPassword(input.password, user.passwordHash)) || user.isDisabled) {
+        if (user) await recordFailedLogin(user.id);
+        await recordSecurityEvent({ eventType: "login_failed", userId: user?.id, ipAddress });
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Email or password is incorrect" });
+      }
+      if (!user.emailVerifiedAt) throw new TRPCError({ code: "FORBIDDEN", message: "Verify your email address before signing in" });
+      await clearLoginFailures(user.id);
       await startSession(ctx.res, user);
-      await recordLogin(user.id, getRequestIp(ctx.req.headers), ctx.req.header("user-agent") ? hashApiKey(ctx.req.header("user-agent")!) : undefined);
+      await recordLogin(user.id, ipAddress, ctx.req.header("user-agent") ? hashApiKey(ctx.req.header("user-agent")!) : undefined);
+      await recordSecurityEvent({ eventType: "login_success", userId: user.id, ipAddress });
       return toPublicUser(user);
+    }),
+    requestPasswordReset: publicProcedure.input(z.object({ email: emailSchema })).mutation(async ({ input, ctx }) => {
+      const ipAddress = getRequestIp(ctx.req.headers);
+      await enforceAuthRateLimits({ action: "password_reset", email: input.email, ipAddress });
+      const user = await getUserByEmail(input.email);
+      if (user && user.emailVerifiedAt && !user.isDisabled) {
+        const token = await createAuthToken({ userId: user.id, email: user.email, purpose: "password_reset", requestIp: ipAddress, expiresInMs: 20 * 60_000 });
+        await sendPasswordResetEmail(ctx.req, user.email, token);
+        await recordSecurityEvent({ eventType: "password_reset_requested", userId: user.id, ipAddress });
+      }
+      return { success: true };
+    }),
+    resetPassword: publicProcedure.input(z.object({ token: z.string().min(32).max(256), password: passwordSchema })).mutation(async ({ input, ctx }) => {
+      const ipAddress = getRequestIp(ctx.req.headers);
+      await enforceAuthRateLimits({ action: "password_reset", email: hashApiKey(input.token), ipAddress });
+      const token = await consumeAuthToken({ rawToken: input.token, purpose: "password_reset" });
+      if (!token?.userId) throw new TRPCError({ code: "BAD_REQUEST", message: "This reset link is invalid or expired" });
+      const user = await updatePasswordAndRevokeSessions(token.userId, await hashPassword(input.password));
+      if (!user) throw new TRPCError({ code: "BAD_REQUEST", message: "Account access is unavailable" });
+      await recordSecurityEvent({ eventType: "password_reset_completed", userId: user.id, ipAddress });
+      return { success: true };
     }),
     logout: publicProcedure.mutation(async ({ ctx }) => { await endSession(ctx.req, ctx.res); return { success: true }; }),
   }),
@@ -53,7 +113,7 @@ export const appRouter = router({
     updateModel: adminProcedure.input(z.object({ id: z.number().int().positive(), isEnabled: z.boolean().optional(), displayName: z.string().min(2).max(120).optional(), upstreamId: z.string().min(1).max(160).optional(), creditCostPer1kTokens: z.string().regex(/^\d+(\.\d{1,3})?$/).optional() })).mutation(({ input }) => { const { id, ...values } = input; return updateModel(id, values); }),
     providers: adminProcedure.query(() => listProviders()),
     syncProviderModels: adminProcedure.input(z.object({ providerId: z.number().int().positive() })).mutation(({ input }) => syncProviderModels(input.providerId)),
-    saveProvider: adminProcedure.input(z.object({ slug: z.string().trim().min(2).max(50), displayName: z.string().trim().min(2).max(100), baseUrl: z.string().url(), apiKey: z.string().trim().min(1).optional(), isEnabled: z.boolean() })).mutation(({ input }) => saveProvider({ slug: input.slug, displayName: input.displayName, baseUrl: input.baseUrl, isEnabled: input.isEnabled, encryptedApiKey: input.apiKey ? encryptSecret(input.apiKey) : undefined })),
+    saveProvider: adminProcedure.input(z.object({ slug: z.string().trim().min(2).max(50), displayName: z.string().trim().min(2).max(100), baseUrl: z.string().url(), apiKey: z.string().trim().min(1).optional(), isEnabled: z.boolean() })).mutation(({ input }) => { assertSafeUpstreamUrl(input.baseUrl); return saveProvider({ slug: input.slug, displayName: input.displayName, baseUrl: input.baseUrl, isEnabled: input.isEnabled, encryptedApiKey: input.apiKey ? encryptSecret(input.apiKey) : undefined }); }),
     rateLimits: adminProcedure.query(() => getRateLimitSettings()),
     saveRateLimits: adminProcedure.input(z.object({ requestsPerMinute: z.number().int().min(1).max(10000), tokensPerMinute: z.number().int().min(100).max(10_000_000) })).mutation(({ input }) => saveRateLimits(input)),
     setGlobalApiEnabled: adminProcedure.input(z.object({ enabled: z.boolean() })).mutation(({ input }) => setGlobalApiEnabled(input.enabled)),

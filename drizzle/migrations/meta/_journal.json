@@ -22,6 +22,13 @@
       "when": 1787118314534,
       "tag": "0002_demonic_black_bird",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787120305217,
+      "tag": "0003_loud_hemingway",
+      "breakpoints": true
     }
   ]
 }

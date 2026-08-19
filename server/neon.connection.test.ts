@@ -10,5 +10,5 @@ describe("Neon configuration", () => {
     const result = await sql`SELECT 1 AS connected`;
 
     expect(result).toEqual([{ connected: 1 }]);
-  });
+  }, 20_000);
 });

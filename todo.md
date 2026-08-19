@@ -28,3 +28,20 @@
 - [x] Verify the Founder Edition visually, run all checks, and checkpoint the update.
 - [x] Configure the supplied founder bootstrap password as a server-side project secret and verify founder initialization.
 - [x] Prepare the deployment-gated daily 00:00 UTC Heartbeat endpoint; publish the checkpoint before creating the externally managed schedule.
+- [x] Inspect the supplied GitHub repository and record an actionable security audit of auth, API, database, gateway, and deployment risks.
+- [x] Implement token-based email verification, verified-email account activation, and secure password reset flows backed by Neon PostgreSQL; activate delivery by adding the required Resend secrets.
+- [x] Add global, IP, email, and account-based rate limiting for registration, login, verification, reset, API, and gateway routes.
+- [x] Add security headers, safe CORS policy, request-size controls, input validation, audit events, and consistent sensitive-data protections.
+- [x] Build a polished public landing page for Cloudhug's Kiwi Router and an About page naming Blackvault Technology, Cloud Hug by Blackvault Product, and CEO Adarsh Kushwah.
+- [x] Create comprehensive developer documentation with real gateway endpoint URLs, authentication guidance, request/response schemas, error handling, SDK examples, and API reference navigation.
+- [x] Add production-ready Vercel configuration, environment-variable guidance, deployment checks, and endpoint health verification.
+- [x] Add regression tests for the hardened security flows and prepare the Vercel test procedure; Vercel production validation follows the user-controlled deployment step.
+- [x] Extend protection coverage for all API procedures with account-aware rate limits and add regression tests for the layered limits.
+- [x] Add copyable JavaScript/TypeScript and Python SDK examples alongside the existing curl reference.
+- [ ] Configure Resend delivery credentials and validate real verification and password-reset emails after the user authorizes the secrets.
+- [x] Add end-to-end regression coverage proving protected and founder-only procedures enforce account and account/IP 429 limits.
+- [x] Add founder-only procedure coverage and integration-style repeated-call coverage for the shared account and account/IP rate-limit paths.
+- [ ] Link the GitHub repository to Vercel and verify the SPA, `/api/v1/health`, `/api/v1/models`, and `/api/v1/chat/completions` deploy through the same production origin.
+- [x] Correct the Vercel build-output configuration so the public root serves the Vite SPA instead of the bundled Node server source.
+- [ ] Push the Vercel build-output fix to the linked GitHub repository and trigger a new Vercel deployment.
+- [ ] Validate the redeployed Vercel site: `/` serves the SPA, `/about` rewrites to the SPA, and `/api/v1/health` returns a successful API response.

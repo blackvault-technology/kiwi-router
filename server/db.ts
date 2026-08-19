@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { and, desc, eq, gte, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/neon-http";
 import { neon } from "@neondatabase/serverless";
-import { accessBans, announcements, apiKeys, creditLedger, loginRecords, models, providers, rateLimitSettings, requestLogs, sessions, usageDaily, users, type User } from "../drizzle/schema";
+import { accessBans, announcements, apiKeys, authTokens, creditLedger, loginRecords, models, providers, rateLimitBuckets, rateLimitSettings, requestLogs, securityEvents, sessions, usageDaily, users, type User } from "../drizzle/schema";
 import { hashApiKey } from "./auth";
 import { isFounderEmail, normalizeEmail } from "./founder";
 import { decryptSecret } from "./crypto";
@@ -22,6 +22,10 @@ export async function getUserByEmail(email: string) {
   return (await getDb().select().from(users).where(eq(users.email, normalizeEmail(email))).limit(1))[0];
 }
 
+export async function getUserById(id: number) {
+  return (await getDb().select().from(users).where(eq(users.id, id)).limit(1))[0];
+}
+
 export async function createUser(input: { name: string; email: string; passwordHash: string }) {
   const email = normalizeEmail(input.email);
   return (await getDb().insert(users).values({ ...input, email, role: isFounderEmail(email) ? "founder" : "user" }).returning())[0]!;
@@ -39,13 +43,38 @@ export async function deleteSession(id: string) {
   await getDb().delete(sessions).where(eq(sessions.id, id));
 }
 
+export async function deleteAllUserSessions(userId: number) {
+  await getDb().delete(sessions).where(eq(sessions.userId, userId));
+}
+
 export async function getSessionWithUser(sessionId: string, userId: number) {
   const record = await getDb().select({
     sessionId: sessions.id, expiresAt: sessions.expiresAt, id: users.id, name: users.name, email: users.email,
-    passwordHash: users.passwordHash, role: users.role, isDisabled: users.isDisabled, stipendCredits: users.stipendCredits, purchasedCredits: users.purchasedCredits, stripeCustomerId: users.stripeCustomerId, createdAt: users.createdAt, updatedAt: users.updatedAt,
+    passwordHash: users.passwordHash, role: users.role, isDisabled: users.isDisabled, emailVerifiedAt: users.emailVerifiedAt, emailVerificationSentAt: users.emailVerificationSentAt, failedLoginCount: users.failedLoginCount, lockedUntil: users.lockedUntil, stipendCredits: users.stipendCredits, purchasedCredits: users.purchasedCredits, stripeCustomerId: users.stripeCustomerId, createdAt: users.createdAt, updatedAt: users.updatedAt,
   }).from(sessions).innerJoin(users, eq(sessions.userId, users.id))
     .where(and(eq(sessions.id, sessionId), eq(sessions.userId, userId))).limit(1);
   return record[0] as (User & { sessionId: string; expiresAt: Date }) | undefined;
+}
+
+export async function markEmailVerified(userId: number) {
+  return (await getDb().update(users).set({ emailVerifiedAt: new Date(), updatedAt: new Date() }).where(eq(users.id, userId)).returning())[0];
+}
+
+export async function updatePasswordAndRevokeSessions(userId: number, passwordHash: string) {
+  const user = (await getDb().update(users).set({ passwordHash, failedLoginCount: 0, lockedUntil: null, updatedAt: new Date() }).where(eq(users.id, userId)).returning())[0];
+  await deleteAllUserSessions(userId);
+  return user;
+}
+
+export async function recordFailedLogin(userId: number) {
+  const user = await getUserById(userId);
+  if (!user) return;
+  const next = user.failedLoginCount + 1;
+  await getDb().update(users).set({ failedLoginCount: next, lockedUntil: next >= 5 ? new Date(Date.now() + 15 * 60_000) : user.lockedUntil, updatedAt: new Date() }).where(eq(users.id, userId));
+}
+
+export async function clearLoginFailures(userId: number) {
+  await getDb().update(users).set({ failedLoginCount: 0, lockedUntil: null, updatedAt: new Date() }).where(eq(users.id, userId));
 }
 
 export async function createApiKey(userId: number, name: string) {
@@ -275,4 +304,29 @@ export async function banUserAccess(userId: number, founderId: number, reason: s
 export async function banIpAddress(ipAddress: string, reason: string) {
   if (!ipAddress) return;
   await getDb().insert(accessBans).values({ scope: "ip", value: ipAddress, reason }).onConflictDoUpdate({ target: [accessBans.scope, accessBans.value], set: { isActive: true, reason } });
+}
+
+export async function createAuthToken(input: { userId: number; email: string; purpose: "email_verify" | "password_reset"; requestIp?: string; expiresInMs: number }) {
+  const rawToken = randomBytes(32).toString("base64url");
+  const email = normalizeEmail(input.email);
+  const tokenHash = hashApiKey(rawToken);
+  await getDb().update(authTokens).set({ consumedAt: new Date() }).where(and(eq(authTokens.email, email), eq(authTokens.purpose, input.purpose), isNull(authTokens.consumedAt)));
+  await getDb().insert(authTokens).values({ userId: input.userId, email, purpose: input.purpose, tokenHash, requestIp: input.requestIp, expiresAt: new Date(Date.now() + input.expiresInMs) });
+  return rawToken;
+}
+
+export async function consumeAuthToken(input: { rawToken: string; purpose: "email_verify" | "password_reset" }) {
+  const now = new Date();
+  return (await getDb().update(authTokens).set({ consumedAt: now }).where(and(eq(authTokens.tokenHash, hashApiKey(input.rawToken)), eq(authTokens.purpose, input.purpose), isNull(authTokens.consumedAt), gte(authTokens.expiresAt, now))).returning())[0];
+}
+
+export async function takeRateLimit(input: { scope: string; subject: string; maxHits: number; windowMs: number }) {
+  const windowStart = new Date(Math.floor(Date.now() / input.windowMs) * input.windowMs);
+  const result = await getDb().insert(rateLimitBuckets).values({ scope: input.scope.slice(0, 50), subject: input.subject.slice(0, 320), windowStart, hits: 1, updatedAt: new Date() }).onConflictDoUpdate({ target: [rateLimitBuckets.scope, rateLimitBuckets.subject, rateLimitBuckets.windowStart], set: { hits: sql`${rateLimitBuckets.hits} + 1`, updatedAt: new Date() } }).returning({ hits: rateLimitBuckets.hits });
+  const hits = result[0]?.hits ?? input.maxHits + 1;
+  return { allowed: hits <= input.maxHits, remaining: Math.max(0, input.maxHits - hits), retryAfterSeconds: Math.max(1, Math.ceil((windowStart.getTime() + input.windowMs - Date.now()) / 1000)) };
+}
+
+export async function recordSecurityEvent(input: { eventType: string; userId?: number; ipAddress?: string; metadata?: Record<string, unknown> }) {
+  await getDb().insert(securityEvents).values({ userId: input.userId, eventType: input.eventType.slice(0, 80), ipAddress: input.ipAddress, metadata: input.metadata ?? {} });
 }

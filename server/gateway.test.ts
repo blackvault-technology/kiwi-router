@@ -9,10 +9,15 @@ describe("gateway contract", () => {
       post: (path: string) => {
         routes.push(path);
       },
+      get: (path: string) => {
+        routes.push(path);
+      },
     } as unknown as Express;
 
     registerGateway(app);
 
     expect(routes).toContain("/api/v1/chat/completions");
+    expect(routes).toContain("/api/v1/models");
+    expect(routes).toContain("/api/v1/health");
   });
 });

@@ -5,6 +5,7 @@ export const requestStatus = pgEnum("request_status", ["success", "error"]);
 export const creditEntryType = pgEnum("credit_entry_type", ["grant", "airdrop", "purchase", "spend", "expiry"]);
 export const creditBucket = pgEnum("credit_bucket", ["stipend", "purchased"]);
 export const banScope = pgEnum("ban_scope", ["user", "ip", "email_domain"]);
+export const authTokenPurpose = pgEnum("auth_token_purpose", ["email_verify", "password_reset"]);
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -13,6 +14,10 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash").notNull(),
   role: userRole("role").notNull().default("user"),
   isDisabled: boolean("is_disabled").notNull().default(false),
+  emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
+  emailVerificationSentAt: timestamp("email_verification_sent_at", { withTimezone: true }),
+  failedLoginCount: integer("failed_login_count").notNull().default(0),
+  lockedUntil: timestamp("locked_until", { withTimezone: true }),
   stipendCredits: numeric("stipend_credits", { precision: 14, scale: 3 }).notNull().default("0"),
   purchasedCredits: numeric("purchased_credits", { precision: 14, scale: 3 }).notNull().default("0"),
   stripeCustomerId: varchar("stripe_customer_id", { length: 255 }),
@@ -145,6 +150,36 @@ export const accessBans = pgTable("access_bans", {
   createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, table => [uniqueIndex("access_bans_scope_value_idx").on(table.scope, table.value)]);
+
+export const authTokens = pgTable("auth_tokens", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }),
+  email: varchar("email", { length: 320 }).notNull(),
+  purpose: authTokenPurpose("purpose").notNull(),
+  tokenHash: varchar("token_hash", { length: 64 }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  consumedAt: timestamp("consumed_at", { withTimezone: true }),
+  requestIp: varchar("request_ip", { length: 64 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [uniqueIndex("auth_tokens_hash_idx").on(table.tokenHash), index("auth_tokens_email_purpose_idx").on(table.email, table.purpose)]);
+
+export const rateLimitBuckets = pgTable("rate_limit_buckets", {
+  id: serial("id").primaryKey(),
+  scope: varchar("scope", { length: 50 }).notNull(),
+  subject: varchar("subject", { length: 320 }).notNull(),
+  windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+  hits: integer("hits").notNull().default(1),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [uniqueIndex("rate_limit_buckets_scope_subject_window_idx").on(table.scope, table.subject, table.windowStart), index("rate_limit_buckets_expiry_idx").on(table.windowStart)]);
+
+export const securityEvents = pgTable("security_events", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "set null" }),
+  eventType: varchar("event_type", { length: 80 }).notNull(),
+  ipAddress: varchar("ip_address", { length: 64 }),
+  metadata: jsonb("metadata").notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [index("security_events_user_created_idx").on(table.userId, table.createdAt), index("security_events_type_created_idx").on(table.eventType, table.createdAt)]);
 
 export type User = typeof users.$inferSelect;
 export type ApiKey = typeof apiKeys.$inferSelect;

@@ -1,10 +1,12 @@
 import { Readable, Transform } from "node:stream";
 import type { Express, Request, Response } from "express";
 import { decryptSecret } from "./crypto";
-import { checkRateLimit, getApiKeyOwner, getGatewayRoute, isAccessBanned, logRequest } from "./db";
+import { checkRateLimit, getApiKeyOwner, getGatewayRoute, isAccessBanned, listModels, logRequest } from "./db";
 import { canSpendCredits, spendCredits } from "./credits";
 import { getRequestIp } from "./founder";
 import { hashApiKey } from "./auth";
+import { assertSafeUpstreamUrl } from "./security";
+import { z } from "zod";
 
 function requestApiKey(req: Request) {
   const authorization = req.header("authorization") ?? "";
@@ -16,6 +18,14 @@ function respondError(res: Response, status: number, message: string, code: stri
 }
 
 type ChatMessage = { role?: string; content?: unknown };
+
+const completionSchema = z.object({
+  model: z.string().trim().min(1).max(120),
+  messages: z.array(z.object({ role: z.enum(["system", "user", "assistant", "tool"]).optional(), content: z.union([z.string().max(50_000), z.array(z.unknown()).max(32)]).optional() })).min(1).max(64),
+  stream: z.boolean().optional().default(false),
+  max_tokens: z.number().int().min(1).max(8192).optional(),
+  stream_options: z.record(z.string(), z.unknown()).optional(),
+}).strict();
 
 export function anthopicPayload(body: { messages?: ChatMessage[]; stream?: boolean; max_tokens?: number }, upstreamModel: string) {
   const messages = body.messages ?? [];
@@ -112,19 +122,31 @@ function createOpenAiUsageObserver(usage: { inputTokens: number; outputTokens: n
 }
 
 export function registerGateway(app: Express) {
+  app.get("/api/v1/health", (_req, res) => res.status(200).json({ status: "ok", service: "cloudhug-kiwi-router", timestamp: new Date().toISOString() }));
+  app.get("/api/v1/models", async (req, res) => {
+    const apiKey = requestApiKey(req);
+    if (!apiKey) return respondError(res, 401, "Missing API key", "invalid_api_key");
+    const owner = await getApiKeyOwner(apiKey);
+    if (!owner) return respondError(res, 401, "Invalid or revoked API key", "invalid_api_key");
+    const ipAddress = req.ip || getRequestIp(req.headers);
+    if (await isAccessBanned(owner.user.id, owner.user.email, ipAddress)) return respondError(res, 403, "Access is blocked", "access_banned");
+    const rate = await checkRateLimit(owner.user.id, ipAddress);
+    if (!rate.allowed) return respondError(res, 429, "Rate limit exceeded", "rate_limit_exceeded");
+    const available = await listModels(true);
+    return res.json({ object: "list", data: available.map(({ model }) => ({ id: model.slug, object: "model", created: Math.floor(model.createdAt.getTime() / 1000), owned_by: "cloudhug" })) });
+  });
   app.post("/api/v1/chat/completions", async (req, res) => {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type, X-API-Key");
     const startedAt = Date.now();
     const apiKey = requestApiKey(req);
     if (!apiKey) return respondError(res, 401, "Missing API key", "invalid_api_key");
     const owner = await getApiKeyOwner(apiKey);
     if (!owner) return respondError(res, 401, "Invalid or revoked API key", "invalid_api_key");
-    const ipAddress = getRequestIp(req.headers);
+    const ipAddress = req.ip || getRequestIp(req.headers);
     const userAgentHash = req.header("user-agent") ? hashApiKey(req.header("user-agent")!) : undefined;
     if (await isAccessBanned(owner.user.id, owner.user.email, ipAddress)) return respondError(res, 403, "Access is blocked", "access_banned");
-    const body = req.body as { model?: string; stream?: boolean; messages?: ChatMessage[]; max_tokens?: number; stream_options?: Record<string, unknown> };
-    if (!body?.model) return respondError(res, 400, "The `model` field is required", "invalid_request_error");
+    const parsed = completionSchema.safeParse(req.body);
+    if (!parsed.success) return respondError(res, 400, "Invalid chat completion payload", "invalid_request_error");
+    const body = parsed.data as { model: string; stream?: boolean; messages?: ChatMessage[]; max_tokens?: number; stream_options?: Record<string, unknown> };
     const rate = await checkRateLimit(owner.user.id, ipAddress);
     if (!rate.allowed) return respondError(res, 429, "Rate limit exceeded", "rate_limit_exceeded");
     const route = await getGatewayRoute(body.model);
@@ -135,13 +157,18 @@ export function registerGateway(app: Express) {
 
     try {
       const isAnthropic = route.provider.slug === "anthropic";
-      const upstream = await fetch(`${route.provider.baseUrl.replace(/\/$/, "")}${isAnthropic ? "/messages" : "/chat/completions"}`, {
+      const baseUrl = assertSafeUpstreamUrl(route.provider.baseUrl);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 60_000);
+      const upstream = await fetch(`${baseUrl.toString().replace(/\/$/, "")}${isAnthropic ? "/messages" : "/chat/completions"}`, {
         method: "POST",
         headers: isAnthropic
           ? { "Content-Type": "application/json", "x-api-key": decryptSecret(route.provider.encryptedApiKey), "anthropic-version": "2023-06-01" }
           : { "Content-Type": "application/json", Authorization: `Bearer ${decryptSecret(route.provider.encryptedApiKey)}` },
         body: JSON.stringify(isAnthropic ? anthopicPayload(body, route.model.upstreamId) : { ...body, model: route.model.upstreamId, ...(body.stream ? { stream_options: { ...body.stream_options, include_usage: true } } : {}) }),
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
       const metadata = { userId: owner.user.id, apiKeyId: owner.apiKey.id, modelSlug: route.model.slug, inputTokens: 0, outputTokens: 0, latencyMs: Date.now() - startedAt, ipAddress, userAgentHash };
       res.status(upstream.status);
       const type = upstream.headers.get("content-type") ?? "application/json";

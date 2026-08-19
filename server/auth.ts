@@ -37,6 +37,7 @@ export function toPublicUser(user: User) {
     email: user.email,
     role: user.role,
     isDisabled: user.isDisabled,
+    emailVerified: Boolean(user.emailVerifiedAt),
     stipendCredits: Number(user.stipendCredits),
     purchasedCredits: Number(user.purchasedCredits),
     kiwiCredits: Number(user.stipendCredits) + Number(user.purchasedCredits),
@@ -83,7 +84,7 @@ export async function getSessionUser(req: Request) {
     const { payload } = await jwtVerify(token, signingKey());
     if (typeof payload.sid !== "string" || typeof payload.sub !== "string") return null;
     const sessionRecord = await getSessionWithUser(payload.sid, Number(payload.sub));
-    if (!sessionRecord || sessionRecord.expiresAt < new Date() || sessionRecord.isDisabled) return null;
+    if (!sessionRecord || sessionRecord.expiresAt < new Date() || sessionRecord.isDisabled || !sessionRecord.emailVerifiedAt) return null;
     return sessionRecord;
   } catch {
     return null;
