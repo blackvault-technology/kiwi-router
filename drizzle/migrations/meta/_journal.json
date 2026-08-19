@@ -113,6 +113,13 @@
       "when": 1787157961256,
       "tag": "0015_pretty_amazoness",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1787166454761,
+      "tag": "0016_clammy_omega_sentinel",
+      "breakpoints": true
     }
   ]
 }

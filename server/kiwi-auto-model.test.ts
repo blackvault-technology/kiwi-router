@@ -7,6 +7,9 @@ const api = readFileSync(new URL("../client/src/lib/playgroundApi.ts", import.me
 const dashboard = readFileSync(new URL("../client/src/components/KiwiDashboard.tsx", import.meta.url), "utf8");
 const ux = readFileSync(new URL("../client/src/components/UXEnhancements.tsx", import.meta.url), "utf8");
 const uxCatalog = readFileSync(new URL("../client/src/lib/uxEnhancementCatalog.ts", import.meta.url), "utf8");
+const schema = readFileSync(new URL("../drizzle/schema.ts", import.meta.url), "utf8");
+const routers = readFileSync(new URL("./routers.ts", import.meta.url), "utf8");
+const policyPanel = readFileSync(new URL("../client/src/components/KiwiAutoPolicyPanel.tsx", import.meta.url), "utf8");
 
 describe("Kiwi Auto Model", () => {
   it("publishes a synthetic Kiwi Auto Model without changing provider-neutral discovery", () => {
@@ -22,6 +25,8 @@ describe("Kiwi Auto Model", () => {
     expect(db).toContain("contextFit");
     expect(db).toContain("healthBoost");
     expect(db).toContain("costScore");
+    expect(db).toContain("getAutoRoutePolicy");
+    expect(db).toContain("minContextWindow");
   });
 
   it("routes kiwi/auto through all eligible candidates and preserves the public model identity", () => {
@@ -39,6 +44,15 @@ describe("Kiwi Auto Model", () => {
     expect(api).toContain("streaming");
     expect(dashboard).toContain('title="Generated API"');
     expect(dashboard).toContain("generatePlaygroundApis");
+  });
+
+  it("persists and audits founder-tunable Auto Model policy", () => {
+    expect(schema).toContain('autoRoutePolicies = pgTable("auto_route_policies"');
+    expect(routers).toContain("autoRoutePolicy: adminProcedure");
+    expect(routers).toContain("updateAutoRoutePolicy: adminProcedure");
+    expect(routers).toContain("founder_auto_route_policy_updated");
+    expect(policyPanel).toContain("Live eligibility preview");
+    expect(policyPanel).toContain("Save policy");
   });
 
   it("ships the requested 50-item UX enhancement pass", () => {

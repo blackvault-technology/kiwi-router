@@ -1,1 +1,0 @@
-{"projectId":"soft-fog-60994158","sql":"SELECT m.id, m.slug, m.display_name, m.provider_id, m.upstream_id, m.context_window, m.input_price, m.output_price, m.credit_cost_per_1k_tokens, m.routing_config, m.is_enabled FROM models m WHERE m.slug = 'kiwi/groq-openai-gpt-oss-120b' OR (m.provider_id = 3 AND m.upstream_id = 'openai/gpt-oss-120b') ORDER BY m.id DESC LIMIT 20"}

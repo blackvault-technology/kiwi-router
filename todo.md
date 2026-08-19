@@ -265,12 +265,12 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 
 - [x] Define the Kiwi Auto Model public contract, routing policy, capability requirements, fallback semantics, and safety boundaries.
 - [x] Trace existing model/provider routing, Neon schema, Playground request generation, user dashboard, and founder controls.
-- [ ] Add Neon-backed Kiwi Auto Model configuration and route policy management without breaking existing public model routes.
+- [x] Add Neon-backed Kiwi Auto Model configuration and route policy management without breaking existing public model routes.
 - [x] Implement capability-aware automatic model selection using task hints, latency, cost, health, priority, context window, streaming, tools, vision, JSON mode, and reasoning support.
 - [x] Implement deep fallback, circuit breaking, retry budgets, cooldowns, route scoring, and stable diagnostics for Kiwi Auto Model.
 - [x] Generate Playground API examples automatically for Kiwi Auto Model, including curl, JavaScript/TypeScript, Python, streaming, structured JSON, and tool-use variants.
 - [x] Add user-facing Kiwi Auto Model controls, explanations, route visibility, and safe model override behavior.
-- [ ] Add founder controls to preview, test, tune, enable, disable, and audit Kiwi Auto Model policies.
-- [ ] Apply 50 concrete UX enhancements across landing, navigation, Overview, Models, API Keys, Analytics, Playground, credits, referrals, and founder console.
+- [x] Add founder controls to preview, test, tune, enable, disable, and audit Kiwi Auto Model policies.
+- [x] Apply 50 concrete UX enhancements across landing, navigation, Overview, Models, API Keys, Analytics, Playground, credits, referrals, and founder console.
 - [x] Add regression tests for Kiwi Auto Model selection, fallback, policy validation, API generation, permissions, and UX contracts.
-- [ ] Run TypeScript, full tests, responsive screenshots, and save a deploy-ready checkpoint.
+- [x] Run TypeScript, full tests, responsive screenshots, and save a deploy-ready checkpoint.

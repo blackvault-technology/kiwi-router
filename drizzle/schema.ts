@@ -125,6 +125,23 @@ export const models = pgTable("models", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, table => [uniqueIndex("models_slug_provider_upstream_idx").on(table.slug, table.providerId, table.upstreamId), index("models_slug_priority_idx").on(table.slug), index("models_provider_idx").on(table.providerId)]);
 
+export const autoRoutePolicies = pgTable("auto_route_policies", {
+  id: serial("id").primaryKey(),
+  slug: varchar("slug", { length: 120 }).notNull().default("kiwi/auto"),
+  displayName: varchar("display_name", { length: 120 }).notNull().default("Kiwi Auto Model"),
+  isEnabled: boolean("is_enabled").notNull().default(true),
+  maxCostPer1k: numeric("max_cost_per_1k", { precision: 12, scale: 3 }).notNull().default("1000"),
+  latencyBudgetMs: integer("latency_budget_ms").notNull().default(45000),
+  minContextWindow: integer("min_context_window").notNull().default(4096),
+  requireHealthy: boolean("require_healthy").notNull().default(true),
+  fallbackOn5xx: boolean("fallback_on_5xx").notNull().default(true),
+  fallbackOnTimeout: boolean("fallback_on_timeout").notNull().default(true),
+  routingConfig: jsonb("routing_config").notNull().default({}),
+  updatedBy: integer("updated_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [uniqueIndex("auto_route_policies_slug_idx").on(table.slug)]);
+
 export const requestLogs = pgTable("request_logs", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
   userId: integer("user_id").references(() => users.id, { onDelete: "set null" }),

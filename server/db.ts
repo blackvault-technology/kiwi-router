@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { and, desc, eq, gte, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/neon-http";
 import { neon } from "@neondatabase/serverless";
-import { accessBans, announcements, apiKeys, apiKeyProviderAccess, authTokens, emailOutbox, googleIdentities, couponCodes, couponRedemptions, creditLedger, loginRecords, models, providerCredentials, providerHealthChecks, providers, rateLimitBuckets, rateLimitPolicies, rateLimitSettings, referrals, requestLogs, securityEvents, sessions, usageDaily, users, type User } from "../drizzle/schema";
+import { accessBans, announcements, apiKeys, apiKeyProviderAccess, authTokens, autoRoutePolicies, emailOutbox, googleIdentities, couponCodes, couponRedemptions, creditLedger, loginRecords, models, providerCredentials, providerHealthChecks, providers, rateLimitBuckets, rateLimitPolicies, rateLimitSettings, referrals, requestLogs, securityEvents, sessions, usageDaily, users, type User } from "../drizzle/schema";
 import { hashApiKey } from "./auth";
 import { isFounderEmail, normalizeEmail } from "./founder";
 import { decryptSecret } from "./crypto";
@@ -206,11 +206,36 @@ export async function listModels(enabledOnly = true) {
   return [{ model: autoModel, provider: autoProvider }, ...deduped];
 }
 
+export async function getAutoRoutePolicy() {
+  return (await getDb().select().from(autoRoutePolicies).where(eq(autoRoutePolicies.slug, KIWI_AUTO_MODEL_SLUG)).limit(1))[0] ?? { slug: KIWI_AUTO_MODEL_SLUG, displayName: "Kiwi Auto Model", isEnabled: true, maxCostPer1k: "1000", latencyBudgetMs: 45000, minContextWindow: 4096, requireHealthy: true, fallbackOn5xx: true, fallbackOnTimeout: true, routingConfig: {} };
+}
+
+export async function updateAutoRoutePolicy(input: { isEnabled?: boolean; maxCostPer1k?: string; latencyBudgetMs?: number; minContextWindow?: number; requireHealthy?: boolean; fallbackOn5xx?: boolean; fallbackOnTimeout?: boolean; routingConfig?: Record<string, unknown> }, updatedBy: number) {
+  const policy = await getAutoRoutePolicy();
+  return (await getDb().insert(autoRoutePolicies).values({ slug: KIWI_AUTO_MODEL_SLUG, displayName: "Kiwi Auto Model", ...input, updatedBy }).onConflictDoUpdate({ target: autoRoutePolicies.slug, set: { ...input, updatedBy, updatedAt: new Date() } }).returning())[0] ?? policy;
+}
+
 export async function getGatewayRoutes(slug: string, hints: AutoModelRequestHints = {}) {
   const query = getDb().select({ model: models, provider: providers }).from(models).innerJoin(providers, eq(models.providerId, providers.id));
   const rows = await query.where(and(eq(models.isEnabled, true), eq(providers.isEnabled, true))).orderBy(sql`${providers.isHealthy} DESC`, sql`CASE WHEN (${models.routingConfig}->>'priority') ~ '^[0-9]+$' THEN (${models.routingConfig}->>'priority')::int ELSE 100 END ASC`, models.id);
   if (slug !== KIWI_AUTO_MODEL_SLUG) return rows.filter(row => row.model.slug === slug);
-  return rows.sort((a, b) => autoScore(b, hints) - autoScore(a, hints) || a.model.id - b.model.id);
+  const policy = await getAutoRoutePolicy();
+  if (!policy.isEnabled) return [];
+  const maxCost = Number(policy.maxCostPer1k);
+  const minContext = Math.max(Number(policy.minContextWindow), Number(hints.maxTokens ?? 0));
+  const eligible = rows.filter(row => {
+    const config = autoConfig(row);
+    if (policy.requireHealthy && !row.provider.isHealthy) return false;
+    if (Number.isFinite(maxCost) && Number(row.model.creditCostPer1kTokens) > maxCost) return false;
+    if (row.model.contextWindow < minContext) return false;
+    if (hints.stream && !config.capabilities.streaming) return false;
+    if (hints.requireTools && !config.capabilities.tools) return false;
+    if (hints.requireVision && !config.capabilities.vision) return false;
+    if (hints.requireJsonMode && !config.capabilities.jsonMode) return false;
+    if (hints.requireReasoning && !config.capabilities.reasoning) return false;
+    return true;
+  });
+  return eligible.sort((a, b) => autoScore(b, hints) - autoScore(a, hints) || a.model.id - b.model.id);
 }
 
 export async function getGatewayRoute(slug: string) {
