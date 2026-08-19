@@ -187,5 +187,11 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 
 ## 2026-08-19 Google sign-in configuration failure
 
-- [ ] Fix deployed `/api/auth/google` returning `{"error":"Google sign-in is not configured"}` despite configured Google credentials.
+- [x] Fix deployed `/api/auth/google` returning `{"error":"Google sign-in is not configured"}` despite configured Google credentials.
 - [x] Add regression coverage for production-secret loading and configured Google OAuth redirect behavior.
+
+
+## 2026-08-19 Vercel environment audit
+
+- [x] Audit Vercel production environment variable names and deployment visibility for Google OAuth, Neon, JWT, APP_URL, and gateway configuration.
+- [x] Align or document any missing Vercel environment values and validate live Google auth after redeployment.
