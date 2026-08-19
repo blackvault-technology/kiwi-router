@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { and, desc, eq, gte, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/neon-http";
 import { neon } from "@neondatabase/serverless";
-import { accessBans, announcements, apiKeys, apiKeyProviderAccess, authTokens, emailOutbox, couponCodes, couponRedemptions, creditLedger, loginRecords, models, providerCredentials, providerHealthChecks, providers, rateLimitBuckets, rateLimitPolicies, rateLimitSettings, referrals, requestLogs, securityEvents, sessions, usageDaily, users, type User } from "../drizzle/schema";
+import { accessBans, announcements, apiKeys, apiKeyProviderAccess, authTokens, emailOutbox, googleIdentities, couponCodes, couponRedemptions, creditLedger, loginRecords, models, providerCredentials, providerHealthChecks, providers, rateLimitBuckets, rateLimitPolicies, rateLimitSettings, referrals, requestLogs, securityEvents, sessions, usageDaily, users, type User } from "../drizzle/schema";
 import { hashApiKey } from "./auth";
 import { isFounderEmail, normalizeEmail } from "./founder";
 import { decryptSecret } from "./crypto";
@@ -70,6 +70,18 @@ export async function getOrCreateReferralCode(userId: number) {
 
 export async function promoteFounderRecord() {
   return (await getDb().update(users).set({ role: "founder", isDisabled: false, updatedAt: new Date() }).where(eq(users.email, "indiasikhotechno@gmail.com")).returning())[0];
+}
+
+export async function getGoogleIdentity(googleSubject: string) {
+  return (await getDb().select().from(googleIdentities).where(eq(googleIdentities.googleSubject, googleSubject)).limit(1))[0];
+}
+
+export async function getGoogleIdentityByEmail(email: string) {
+  return (await getDb().select().from(googleIdentities).where(eq(googleIdentities.email, normalizeEmail(email))).limit(1))[0];
+}
+
+export async function upsertGoogleIdentity(input: { userId: number; googleSubject: string; email: string; displayName: string; avatarUrl?: string }) {
+  return (await getDb().insert(googleIdentities).values({ ...input, email: normalizeEmail(input.email) }).onConflictDoUpdate({ target: googleIdentities.googleSubject, set: { userId: input.userId, email: normalizeEmail(input.email), displayName: input.displayName, avatarUrl: input.avatarUrl, updatedAt: new Date() } }).returning())[0]!;
 }
 
 export async function createSession(userId: number, expiresAt: Date) {

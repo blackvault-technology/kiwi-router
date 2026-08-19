@@ -11,6 +11,7 @@ import { dailyCreditMaintenance } from "./credits";
 import { ensureFounderAccount } from "./founderBootstrap";
 import { registerStripeWebhook } from "./stripeCredits";
 import { banIpAddress } from "./db";
+import { registerGoogleAuth } from "./googleAuth";
 import { corsGuard, globalApiRateLimit, securityHeaders } from "./httpSecurity";
 
 export async function createApp() {
@@ -23,6 +24,7 @@ export async function createApp() {
   app.use(express.json({ limit: "256kb", strict: true }));
   app.use(express.urlencoded({ limit: "64kb", extended: false }));
   app.use("/api", globalApiRateLimit);
+  registerGoogleAuth(app);
   app.use("/admin", async (req: Request, res: Response, next: NextFunction) => {
     const user = await getSessionUser(req);
     if (!user || user.email !== FOUNDER_EMAIL || user.role !== "founder") return res.status(403).json({ error: "Founder access required" });

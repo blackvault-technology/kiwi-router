@@ -28,6 +28,17 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, table => [uniqueIndex("users_email_idx").on(table.email), uniqueIndex("users_referral_code_idx").on(table.referralCode)]);
 
+export const googleIdentities = pgTable("google_identities", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  googleSubject: varchar("google_subject", { length: 255 }).notNull().unique(),
+  email: varchar("email", { length: 320 }).notNull(),
+  displayName: varchar("display_name", { length: 160 }).notNull(),
+  avatarUrl: varchar("avatar_url", { length: 1000 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [index("google_identities_user_idx").on(table.userId)]);
+
 export const sessions = pgTable("sessions", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
