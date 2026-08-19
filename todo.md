@@ -47,3 +47,7 @@
 - [ ] Validate the redeployed Vercel site: `/` serves the SPA, `/about` rewrites to the SPA, and `/api/v1/health` returns a successful API response.
 - [x] Reserve `/api/*` for Vercel serverless functions before applying the SPA fallback rewrite.
 - [ ] Resolve the Vercel serverless function invocation failure and verify `/api/v1/health` returns JSON with status 200 in production.
+- [x] Use an ESM-resolvable catch-all API import specifier in Vercel’s generated serverless artifact.
+- [ ] Push the catch-all `.js` import fix and wait for a fresh Vercel production deployment.
+- [ ] Confirm the new Vercel function logs no longer report `ERR_MODULE_NOT_FOUND` for `/var/task/api/index`.
+- [ ] Confirm the live `/api/v1/health` endpoint returns a JSON response with HTTP 200.
