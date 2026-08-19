@@ -3,8 +3,8 @@
   "buildCommand": "pnpm build:vercel",
   "outputDirectory": "dist",
   "functions": {
-    "api/index.ts": { "runtime": "nodejs22.x", "maxDuration": 60 },
-    "api/[...path].ts": { "runtime": "nodejs22.x", "maxDuration": 60 }
+    "api/index.ts": { "maxDuration": 60 },
+    "api/[...path].ts": { "maxDuration": 60 }
   },
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
