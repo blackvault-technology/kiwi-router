@@ -23,3 +23,5 @@ An expanded **375 × 1800 px** production capture directly shows the rendered pr
 ## 2026-08-19 API status release
 
 The checkpoint `990129ea50665fbca95c22a73cb57c15710496b4` deployed as Vercel production deployment `dpl_DUDLGYacGNgf5uNgctcmJzWMKWwC` with state **READY**. The canonical `https://kiwi-router.vercel.app/api/status` endpoint returned HTTP 200 JSON with real live component checks: operational Neon database and gateway signals, plus degraded zero-count signals for the currently unconfigured enabled model catalog and provider configuration. The public `https://kiwi-router.vercel.app/status` page rendered the same snapshot, checked timestamps, latency, refresh interaction, and safe degraded-state language.
+
+The latest checkpoint `3d47a9cccd288bf5481ecbe68ca7f5fd772f1c2b` is active as Vercel production deployment `dpl_4m6w3aGPaEJ3VeQYnCN5cbg47wFE` with state **READY**. A cache-busting production request at 11:15 UTC returned HTTP 200 with `Cache-Control: no-store, max-age=0`; its fresh status timestamp confirmed the operational Neon database and gateway checks are live on the active release.

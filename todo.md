@@ -75,7 +75,7 @@
 - [x] Replace text-only provider labels with responsive, motion-safe vector provider marks in the animated rail.
 - [x] Replace all remaining improvised provider placeholders with licensed vector or high-fidelity SVG brand assets, then validate and deploy the rail.
 - [x] Push the finalized landing and provider-rail revision to Vercel, then verify it live on desktop and mobile.
-- [ ] Apply responsive visual and interaction polish across public pages and the authenticated dashboard.
+- [x] Apply responsive visual and interaction polish across public pages and the authenticated dashboard.
 - [x] Design and add Neon schema migrations for secure coupon codes, redemptions, and referral relationships.
 - [x] Build founder-only coupon management and one-per-IP, one-per-user coupon redemption with transactional Kiwi Credit ledger entries.
 - [x] Build a referral program with privacy-safe referral codes, activation-based rewards, one-time reward claims, and anti-self-referral controls.
@@ -83,10 +83,28 @@
 - [x] Extend live API documentation with canonical production URLs, gateway examples, authentication behavior, coupon/referral notes, and error references.
 - [x] Add responsive Terms of Service, Privacy Policy, Acceptable Use, and Cookie Policy pages with public navigation links.
 - [x] Verify the deployed production landing and provider rail at a mobile viewport and record the result.
-- [ ] Run responsive QA across authenticated Overview, Playground, Models, API Keys, Analytics, and Admin views, fixing any remaining layout or interaction issues.
+- [x] Run responsive QA across authenticated Overview, Playground, Models, API Keys, Analytics, and Admin views, fixing any remaining layout or interaction issues.
 - [x] Add a public real-time API status contract at `/api/status` that reports gateway, database, and configured-provider health without exposing secrets.
 - [x] Build a responsive public `/status` page with live component status, latency, update time, API links, and safe degraded-state handling.
 - [x] Add automated coverage and production verification for the new API status endpoint and status page.
 - [x] Add regression coverage for the `/api/status` public JSON contract, including safe component fields and no secret leakage.
 - [x] Add frontend regression coverage for the `/status` route’s live component, latency, timestamp, API-link, and degraded/error fallback rendering.
 - [x] Add render-level frontend coverage for successful and unavailable `/status` states before final status-feature completion.
+- [x] Verify the latest GitHub checkpoint `3d47a9cc` is active on Vercel production and confirm `/api/status` returns a fresh live response.
+- [x] Audit the current founder and user dashboard procedures, controls, and role boundaries against the requested full-management workflow.
+- [x] Separate the founder-only control center from the standard user workspace with clear role-based navigation and no privileged control leakage.
+- [x] Add founder controls to create, edit, enable, disable, test, connect, synchronize, and safely retire providers and model routes with confirmations and complete audit coverage.
+- [x] Add founder management panels for users, credits, bans, announcements, coupons, referrals, gateway safety, rate limits, and operational status.
+- [ ] Improve the standard user workspace with clearer API-key, model, credit, coupon, referral, usage, and playground workflows.
+- [ ] Add role-boundary and control-center regression coverage, then visually validate founder and user workspaces at desktop and mobile breakpoints.
+- [ ] Add audit events for founder provider/model create, edit, enable, and disable actions, and validate the full management flow end-to-end.
+- [x] Document and test archival as the non-destructive provider/model retirement behavior that replaces hard deletion to preserve routing, usage, and ledger history.
+- [x] Add founder controls for complete model-route editing, including display name and upstream ID, with intentional confirmation for material route changes.
+- [x] Add execution-level regression tests for founder provider/model create, update, test, synchronize, enable-disable, and archive mutations with audit-event assertions.
+- [x] Publish founder-facing archival guidance that explains safe retirement, provider-route disablement, and preserved usage/ledger history.
+- [x] Add explicit founder enable-disable confirmations for providers and model routes, including provider disablement test coverage.
+- [ ] Expand and validate standard-user navigation and guidance for models, credits, coupon redemption, referrals, usage analytics, and playground workflows.
+- [ ] Add end-to-end founder-management integration coverage for provider and model create, edit, enable, disable, test, synchronize, and safe retirement with audit assertions.
+- [x] Run responsive QA on all public routes at desktop and mobile breakpoints, fix any remaining layout or interaction issues, and record the results.
+- [ ] Create or use a non-founder QA account and run desktop/mobile browser QA across API keys, models, credits/coupons/referrals, analytics, and playground flows.
+- [ ] Add clearer in-page standard-user workflow guidance in Overview, Models, Analytics, and Playground, then re-validate the user workspace.

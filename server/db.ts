@@ -324,6 +324,51 @@ export async function syncProviderModels(providerId: number) {
   return { discovered: discovered.length, mode: "automatic" as const };
 }
 
+/** Performs a non-billable credential and catalog handshake without exposing upstream response details. */
+export async function testProviderConnection(providerId: number) {
+  const provider = (await getDb().select().from(providers).where(eq(providers.id, providerId)).limit(1))[0];
+  if (!provider) throw new Error("Provider not found");
+  if (!provider.encryptedApiKey) return { ok: false, latencyMs: 0, statusCode: null, detail: "No encrypted credential is configured" };
+  const startedAt = Date.now();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8_000);
+  try {
+    const root = provider.baseUrl.replace(/\/$/, "");
+    const response = await fetch(`${root}/models`, {
+      headers: provider.slug === "anthropic"
+        ? { "x-api-key": decryptSecret(provider.encryptedApiKey), "anthropic-version": "2023-06-01" }
+        : { Authorization: `Bearer ${decryptSecret(provider.encryptedApiKey)}` },
+      signal: controller.signal,
+    });
+    const latencyMs = Date.now() - startedAt;
+    const ok = response.ok;
+    await getDb().update(providers).set({ isHealthy: ok, updatedAt: new Date() }).where(eq(providers.id, provider.id));
+    return { ok, latencyMs, statusCode: response.status, detail: ok ? "Catalog handshake succeeded" : "Provider rejected the catalog handshake" };
+  } catch {
+    const latencyMs = Date.now() - startedAt;
+    await getDb().update(providers).set({ isHealthy: false, updatedAt: new Date() }).where(eq(providers.id, provider.id));
+    return { ok: false, latencyMs, statusCode: null, detail: "Provider did not complete the catalog handshake" };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/** Archives a provider safely by disabling it and every attached route without deleting audit history. */
+export async function archiveProvider(providerId: number) {
+  const db = getDb();
+  const provider = (await db.select({ id: providers.id }).from(providers).where(eq(providers.id, providerId)).limit(1))[0];
+  if (!provider) throw new Error("Provider not found");
+  await db.update(models).set({ isEnabled: false, updatedAt: new Date() }).where(eq(models.providerId, providerId));
+  return (await db.update(providers).set({ isEnabled: false, isHealthy: false, updatedAt: new Date() }).where(eq(providers.id, providerId)).returning())[0]!;
+}
+
+/** Archives a model route by disabling it, retaining its historic usage and ledger references. */
+export async function archiveModel(modelId: number) {
+  const saved = (await getDb().update(models).set({ isEnabled: false, updatedAt: new Date() }).where(eq(models.id, modelId)).returning())[0];
+  if (!saved) throw new Error("Model not found");
+  return saved;
+}
+
 export async function banUserAccess(userId: number, founderId: number, reason: string) {
   const db = getDb();
   const user = (await db.select().from(users).where(eq(users.id, userId)).limit(1))[0];

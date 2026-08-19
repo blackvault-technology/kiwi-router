@@ -22,7 +22,7 @@ shutil.rmtree(profile_dir, ignore_errors=True)
 
 chrome = subprocess.Popen([
     "chromium", "--headless=new", "--no-sandbox", "--disable-gpu",
-    "--remote-debugging-port=9222", "--remote-allow-origins=http://127.0.0.1:9222",
+    "--remote-debugging-port=9222", "--remote-allow-origins=*",
     f"--user-data-dir={profile_dir}", "about:blank",
 ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
@@ -41,7 +41,7 @@ else:
     chrome.terminate()
     raise RuntimeError("Chromium DevTools endpoint did not start.")
 
-ws = create_connection(tabs[0]["webSocketDebuggerUrl"], origin="http://127.0.0.1:9222")
+ws = create_connection(tabs[0]["webSocketDebuggerUrl"], suppress_origin=True)
 counter = 0
 
 def cdp(method, params=None):
@@ -69,13 +69,12 @@ def fill(placeholder, value):
       (() => {
         const el = [...document.querySelectorAll('input')].find(node => node.getAttribute('placeholder') === %s);
         if (!el) throw new Error('Input not found');
-        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-        setter.call(el, %s);
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-        el.dispatchEvent(new Event('change', { bubbles: true }));
+        el.focus();
+        el.select();
       })()
-    """ % (json.dumps(placeholder), json.dumps(value))
+    """ % json.dumps(placeholder)
     evaluate(expression)
+    cdp("Input.insertText", {"text": value})
 
 def click_button(name):
     expression = """
@@ -90,8 +89,14 @@ def click_button(name):
 def capture(label, route, width, height, expected_text):
     cdp("Emulation.setDeviceMetricsOverride", {"width": width, "height": height, "deviceScaleFactor": 1, "mobile": width < 600})
     navigate(f"{origin}{route}")
-    body = evaluate("document.body.innerText") or ""
-    title_found = expected_text.lower() in body.lower()
+    body = ""
+    title_found = False
+    for _ in range(15):
+        body = evaluate("document.body.innerText") or ""
+        title_found = expected_text.lower() in body.lower()
+        if title_found:
+            break
+        time.sleep(1)
     overflow = evaluate("document.documentElement.scrollWidth > window.innerWidth + 2")
     result = cdp("Page.captureScreenshot", {"format": "png", "captureBeyondViewport": True})
     screenshot = output_dir / f"{label}-{route.strip('/').replace('/', '-') or 'overview'}.png"
@@ -105,9 +110,14 @@ try:
     fill("Email", email)
     fill("Password", password)
     click_button("Sign in")
-    time.sleep(3)
-    if "/app" not in (evaluate("location.pathname") or ""):
-        raise RuntimeError("Founder sign-in did not navigate to the dashboard.")
+    signed_in_body = ""
+    for _ in range(15):
+        time.sleep(1)
+        signed_in_body = evaluate("document.body.innerText") or ""
+        if "Gateway overview" in signed_in_body:
+            break
+    if "Gateway overview" not in signed_in_body:
+        raise RuntimeError(f"Founder sign-in did not render the dashboard: {signed_in_body[:600]}")
 
     routes = [
         ("/app", "Gateway overview"),
@@ -115,7 +125,7 @@ try:
         ("/app/models", "Models"),
         ("/app/api-keys", "API Keys"),
         ("/app/analytics", "Usage analytics"),
-        ("/app/admin", "Admin"),
+        ("/app/admin", "Founder command center"),
     ]
     results = []
     for label, width, height in [("desktop", 1280, 900), ("mobile", 375, 812)]:
