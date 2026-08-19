@@ -41,7 +41,7 @@
 - [ ] Configure Resend delivery credentials and validate real verification and password-reset emails after the user authorizes the secrets.
 - [x] Add end-to-end regression coverage proving protected and founder-only procedures enforce account and account/IP 429 limits.
 - [x] Add founder-only procedure coverage and integration-style repeated-call coverage for the shared account and account/IP rate-limit paths.
-- [ ] Link the GitHub repository to Vercel and verify the SPA, `/api/v1/health`, `/api/v1/models`, and `/api/v1/chat/completions` deploy through the same production origin.
+- [x] Link the GitHub repository to Vercel and verify the SPA, `/api/v1/health`, `/api/v1/models`, and `/api/v1/chat/completions` deploy through the same production origin.
 - [x] Correct the Vercel build-output configuration so the public root serves the Vite SPA instead of the bundled Node server source.
 - [x] Push the Vercel build-output fix to the linked GitHub repository and trigger a new Vercel deployment.
 - [x] Validate the redeployed Vercel site: `/` serves the SPA, `/about` rewrites to the SPA, and `/api/v1/health` returns a successful API response.
@@ -73,8 +73,8 @@
 - [x] Make Overview, Playground, Models, API Keys, Analytics, and Admin dashboard views resilient to unavailable or malformed API data.
 - [x] Refresh the responsive landing hero with a compact CloudHug badge, Kiwi Router naming, and an animated high-quality provider logo rail.
 - [x] Replace text-only provider labels with responsive, motion-safe vector provider marks in the animated rail.
-- [ ] Replace all remaining improvised provider placeholders with licensed vector or high-fidelity SVG brand assets, then validate and deploy the rail.
-- [ ] Push the finalized landing and provider-rail revision to Vercel, then verify it live on desktop and mobile.
+- [x] Replace all remaining improvised provider placeholders with licensed vector or high-fidelity SVG brand assets, then validate and deploy the rail.
+- [x] Push the finalized landing and provider-rail revision to Vercel, then verify it live on desktop and mobile.
 - [ ] Apply responsive visual and interaction polish across public pages and the authenticated dashboard.
 - [x] Design and add Neon schema migrations for secure coupon codes, redemptions, and referral relationships.
 - [x] Build founder-only coupon management and one-per-IP, one-per-user coupon redemption with transactional Kiwi Credit ledger entries.
@@ -82,3 +82,8 @@
 - [x] Add user-facing coupon redemption and referral views to the dashboard.
 - [x] Extend live API documentation with canonical production URLs, gateway examples, authentication behavior, coupon/referral notes, and error references.
 - [x] Add responsive Terms of Service, Privacy Policy, Acceptable Use, and Cookie Policy pages with public navigation links.
+- [x] Verify the deployed production landing and provider rail at a mobile viewport and record the result.
+- [ ] Run responsive QA across authenticated Overview, Playground, Models, API Keys, Analytics, and Admin views, fixing any remaining layout or interaction issues.
+- [ ] Add a public real-time API status contract at `/api/status` that reports gateway, database, and configured-provider health without exposing secrets.
+- [ ] Build a responsive public `/status` page with live component status, latency, update time, API links, and safe degraded-state handling.
+- [ ] Add automated coverage and production verification for the new API status endpoint and status page.

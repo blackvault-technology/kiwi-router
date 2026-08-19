@@ -1,7 +1,7 @@
 import { Readable, Transform } from "node:stream";
 import type { Express, Request, Response } from "express";
 import { decryptSecret } from "./crypto";
-import { checkRateLimit, getApiKeyOwner, getGatewayRoute, isAccessBanned, listModels, logRequest } from "./db";
+import { checkRateLimit, getApiKeyOwner, getGatewayRoute, getRateLimitSettings, isAccessBanned, listModels, listProviders, logRequest } from "./db";
 import { canSpendCredits, spendCredits } from "./credits";
 import { getRequestIp } from "./founder";
 import { hashApiKey } from "./auth";
@@ -15,6 +15,49 @@ function requestApiKey(req: Request) {
 
 function respondError(res: Response, status: number, message: string, code: string) {
   return res.status(status).json({ error: { message, type: "gateway_error", code } });
+}
+
+export type StatusLevel = "operational" | "degraded";
+export type StatusComponent = { id: string; name: string; status: StatusLevel; latencyMs: number; detail: string };
+
+export function overallStatus(components: StatusComponent[]): StatusLevel {
+  return components.every(component => component.status === "operational") ? "operational" : "degraded";
+}
+
+async function measureStatus<T>(check: () => Promise<T>) {
+  const startedAt = Date.now();
+  try {
+    return { ok: true as const, value: await check(), latencyMs: Date.now() - startedAt };
+  } catch {
+    return { ok: false as const, latencyMs: Date.now() - startedAt };
+  }
+}
+
+/**
+ * Produces a public, low-cost operational view without probing providers with secrets,
+ * sending a model request, or exposing configured endpoint/key information.
+ */
+export async function getPublicApiStatus() {
+  const [databaseProbe, providerProbe, modelProbe] = await Promise.all([
+    measureStatus(() => getRateLimitSettings()),
+    measureStatus(() => listProviders()),
+    measureStatus(() => listModels(true)),
+  ]);
+
+  const configuredProviderCount = providerProbe.ok
+    ? providerProbe.value.filter(provider => provider.isEnabled && provider.isConfigured).length
+    : 0;
+  const enabledModelCount = modelProbe.ok ? modelProbe.value.length : 0;
+  const gatewayEnabled = databaseProbe.ok ? databaseProbe.value.globalApiEnabled !== false : false;
+
+  const components: StatusComponent[] = [
+    { id: "database", name: "Neon database", status: databaseProbe.ok ? "operational" : "degraded", latencyMs: databaseProbe.latencyMs, detail: databaseProbe.ok ? "Connectivity check succeeded" : "Connectivity check failed" },
+    { id: "gateway", name: "OpenAI-compatible gateway", status: databaseProbe.ok && gatewayEnabled ? "operational" : "degraded", latencyMs: databaseProbe.latencyMs, detail: databaseProbe.ok ? gatewayEnabled ? "Request routing is enabled" : "Request routing is paused by the global safety switch" : "Dependent database check is unavailable" },
+    { id: "models", name: "Enabled model catalog", status: modelProbe.ok && enabledModelCount > 0 ? "operational" : "degraded", latencyMs: modelProbe.latencyMs, detail: modelProbe.ok ? `${enabledModelCount} enabled route${enabledModelCount === 1 ? "" : "s"}` : "Catalog check failed" },
+    { id: "providers", name: "Provider configuration", status: providerProbe.ok && configuredProviderCount > 0 ? "operational" : "degraded", latencyMs: providerProbe.latencyMs, detail: providerProbe.ok ? `${configuredProviderCount} configured provider${configuredProviderCount === 1 ? "" : "s"}` : "Configuration check failed" },
+  ];
+
+  return { status: overallStatus(components), service: "cloudhug-kiwi-router", checkedAt: new Date().toISOString(), components };
 }
 
 type ChatMessage = { role?: string; content?: unknown };
@@ -123,6 +166,11 @@ function createOpenAiUsageObserver(usage: { inputTokens: number; outputTokens: n
 
 export function registerGateway(app: Express) {
   app.get("/api/v1/health", (_req, res) => res.status(200).json({ status: "ok", service: "cloudhug-kiwi-router", timestamp: new Date().toISOString() }));
+  app.get(["/api/status", "/api/v1/status"], async (_req, res) => {
+    const snapshot = await getPublicApiStatus();
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    return res.status(200).json(snapshot);
+  });
   app.get("/api/v1/models", async (req, res) => {
     const apiKey = requestApiKey(req);
     if (!apiKey) return respondError(res, 401, "Missing API key", "invalid_api_key");

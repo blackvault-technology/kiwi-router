@@ -11,10 +11,11 @@ import { AboutPage } from "./pages/PublicSite";
 import { LandingPage } from "./pages/LandingV2";
 import { DocsPageV2 } from "./pages/DocsV2";
 import { AcceptableUsePage, CookiePolicyPage, PrivacyPage, TermsPage } from "./pages/LegalPages";
+import { StatusPage } from "./pages/StatusPage";
 
 function Router() {
   const [location] = useLocation();
-  const isPublicRoute = location === "/" || location === "/about" || location === "/docs" || location === "/terms" || location === "/privacy" || location === "/acceptable-use" || location === "/cookies" || location === "/verify-email" || location === "/reset-password" || location === "/login" || location === "/register";
+  const isPublicRoute = location === "/" || location === "/about" || location === "/docs" || location === "/status" || location === "/terms" || location === "/privacy" || location === "/acceptable-use" || location === "/cookies" || location === "/verify-email" || location === "/reset-password" || location === "/login" || location === "/register";
   const auth = trpc.auth.me.useQuery(undefined, { retry: false, enabled: !isPublicRoute });
   const utils = trpc.useUtils();
   if (location === "/verify-email") return <VerifyEmail />;
@@ -22,6 +23,7 @@ function Router() {
   if (location === "/") return <LandingPage />;
   if (location === "/about") return <AboutPage />;
   if (location === "/docs") return <DocsPageV2 />;
+  if (location === "/status") return <StatusPage />;
   if (location === "/terms") return <TermsPage />;
   if (location === "/privacy") return <PrivacyPage />;
   if (location === "/acceptable-use") return <AcceptableUsePage />;

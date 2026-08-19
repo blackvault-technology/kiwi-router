@@ -13,3 +13,7 @@ The public `/register` route now bypasses the authenticated-session query and re
 ## 2026-08-19 — Documentation and legal routes
 
 Browser validation confirmed the local developer documentation presents the canonical production origin `https://kiwi-router.vercel.app/api/v1`, complete endpoint examples, and the Kiwi Credits, coupon, referral, and error sections. The responsive Privacy Policy route also rendered correctly with account-data, security, retention, and legal-policy navigation content.
+
+## 2026-08-19 — Public API status page
+
+The local `/status` page was validated after its live check completed. It rendered the real component snapshot from `/api/status`: an operational Neon database and gateway, plus degraded model-catalog and provider-configuration states when zero enabled routes and configured providers were present. The page exposes latency, check time, a manual refresh control, and no provider credentials, URLs, account data, or raw database errors.
