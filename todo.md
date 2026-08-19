@@ -199,8 +199,8 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 
 ## 2026-08-19 Google auth full-flow completion
 
-- [ ] Complete Google callback exchange, Neon identity linking, session cookie creation, and safe redirect to the website.
-- [ ] Ensure auth session loads on page refresh and Google callback errors render actionable login feedback.
+- [x] Complete Google callback exchange, Neon identity linking, session cookie creation, and safe redirect to the website.
+- [x] Ensure auth session loads on page refresh and Google callback errors render actionable login feedback.
 - [ ] Add end-to-end-shaped Google auth/session regression coverage and validate the live production flow.
 
 

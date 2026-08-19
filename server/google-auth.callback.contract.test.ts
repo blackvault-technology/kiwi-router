@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 const source = readFileSync(new URL("./googleAuth.ts", import.meta.url), "utf8");
 const app = readFileSync(new URL("./app.ts", import.meta.url), "utf8");
+const authUi = readFileSync(new URL("../client/src/components/KiwiDashboard.tsx", import.meta.url), "utf8");
 
 describe("Google OAuth callback contract", () => {
   it("uses a signed expiring state and same-site httpOnly state cookie", () => {
@@ -23,5 +24,7 @@ describe("Google OAuth callback contract", () => {
   it("registers the callback behind the existing API security middleware", () => {
     expect(app.indexOf('app.use("/api", globalApiRateLimit)')).toBeLessThan(app.indexOf("registerGoogleAuth(app)"));
     expect(source).toContain('/api/auth/google/callback');
+    expect(authUi).toContain("googleError");
+    expect(authUi).toContain('role="alert"');
   });
 });
