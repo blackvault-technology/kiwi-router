@@ -43,28 +43,38 @@
 - [x] Add founder-only procedure coverage and integration-style repeated-call coverage for the shared account and account/IP rate-limit paths.
 - [ ] Link the GitHub repository to Vercel and verify the SPA, `/api/v1/health`, `/api/v1/models`, and `/api/v1/chat/completions` deploy through the same production origin.
 - [x] Correct the Vercel build-output configuration so the public root serves the Vite SPA instead of the bundled Node server source.
-- [ ] Push the Vercel build-output fix to the linked GitHub repository and trigger a new Vercel deployment.
-- [ ] Validate the redeployed Vercel site: `/` serves the SPA, `/about` rewrites to the SPA, and `/api/v1/health` returns a successful API response.
+- [x] Push the Vercel build-output fix to the linked GitHub repository and trigger a new Vercel deployment.
+- [x] Validate the redeployed Vercel site: `/` serves the SPA, `/about` rewrites to the SPA, and `/api/v1/health` returns a successful API response.
 - [x] Reserve `/api/*` for Vercel serverless functions before applying the SPA fallback rewrite.
-- [ ] Resolve the Vercel serverless function invocation failure and verify `/api/v1/health` returns JSON with status 200 in production.
+- [x] Resolve the Vercel serverless function invocation failure and verify `/api/v1/health` returns JSON with status 200 in production.
 - [x] Use an ESM-resolvable catch-all API import specifier in Vercel’s generated serverless artifact.
-- [ ] Push the catch-all `.js` import fix and wait for a fresh Vercel production deployment.
-- [ ] Confirm the new Vercel function logs no longer report `ERR_MODULE_NOT_FOUND` for `/var/task/api/index`.
-- [ ] Confirm the live `/api/v1/health` endpoint returns a JSON response with HTTP 200.
+- [x] Push the catch-all `.js` import fix and wait for a fresh Vercel production deployment.
+- [x] Confirm the new Vercel function logs no longer report `ERR_MODULE_NOT_FOUND` for `/var/task/api/index`.
+- [x] Confirm the live `/api/v1/health` endpoint returns a JSON response with HTTP 200.
 - [x] Move the shared Vercel handler implementation out of `api/` so each generated function bundles the handler directly.
 - [x] Remove the duplicated legacy `./index` import from the catch-all Vercel API entry point.
 - [x] Bundle the shared handler into a Vercel-included JavaScript artifact with explicit `.js` imports.
-- [ ] Push the bundled handler, explicit imports, and Vercel `includeFiles` configuration to GitHub for a fresh production deployment.
-- [ ] Confirm the fresh Vercel function logs no longer report `ERR_MODULE_NOT_FOUND` for `/var/task/server/vercelHandler`.
-- [ ] Confirm the live Vercel `/api/v1/health` endpoint returns HTTP 200 JSON from the API function.
+- [x] Push the bundled handler, explicit imports, and Vercel `includeFiles` configuration to GitHub for a fresh production deployment.
+- [x] Confirm the fresh Vercel function logs no longer report `ERR_MODULE_NOT_FOUND` for `/var/task/server/vercelHandler`.
+- [x] Confirm the live Vercel `/api/v1/health` endpoint returns HTTP 200 JSON from the API function.
 - [x] Exclude development-only Vite dependencies from the bundled Vercel serverless handler.
-- [ ] Configure the required Neon and application secrets in the Vercel production project, then redeploy the API.
-- [ ] Restore live tRPC authentication responses by resolving the Vercel API initialization configuration blocker.
+- [x] Configure the required Neon and application secrets in the Vercel production project, then redeploy the API.
+- [x] Restore live tRPC authentication responses by resolving the Vercel API initialization configuration blocker.
 - [x] Disable or correctly configure the failing production Umami analytics request.
 - [x] Ensure generated Vercel handler artifacts cannot interfere with the serverless handler test mocks.
-- [ ] Push the Umami script removal to GitHub and wait for a fresh Vercel production deployment.
-- [ ] Confirm the deployed HTML no longer includes an Umami script and the browser no longer requests `/umami`.
+- [x] Push the Umami script removal to GitHub and wait for a fresh Vercel production deployment.
+- [x] Confirm the deployed HTML no longer includes an Umami script and the browser no longer requests `/umami`.
 - [x] Ensure the immutable founder bootstrap account is verified when created or recovered in the production database.
-- [ ] Push the founder bootstrap verification repair to GitHub and wait for a fresh Vercel production deployment.
-- [ ] Confirm the production founder record is verified after serverless bootstrap.
-- [ ] Re-test founder sign-in and confirm it no longer returns the email-verification 403 error.
+- [x] Push the founder bootstrap verification repair to GitHub and wait for a fresh Vercel production deployment.
+- [x] Confirm the production founder record is verified after serverless bootstrap.
+- [x] Re-test founder sign-in and confirm it no longer returns the email-verification 403 error.
+- [ ] Diagnose and fix the live `dashboard.overview` 500 response and resulting client `map` rendering error.
+- [ ] Make Overview, Playground, Models, API Keys, Analytics, and Admin dashboard views resilient to unavailable or malformed API data.
+- [ ] Refresh the responsive landing hero with a compact CloudHug badge, Kiwi Router naming, and an animated high-quality provider logo rail.
+- [ ] Apply responsive visual and interaction polish across public pages and the authenticated dashboard.
+- [ ] Design and add Neon schema migrations for secure coupon codes, redemptions, and referral relationships.
+- [ ] Build founder-only coupon management and one-per-IP, one-per-user coupon redemption with transactional Kiwi Credit ledger entries.
+- [ ] Build a referral program with privacy-safe referral codes, activation-based rewards, one-time reward claims, and anti-self-referral controls.
+- [ ] Add user-facing coupon redemption and referral views to the dashboard.
+- [ ] Extend live API documentation with canonical production URLs, gateway examples, authentication behavior, coupon/referral notes, and error references.
+- [ ] Add responsive Terms of Service, Privacy Policy, Acceptable Use, and Cookie Policy pages with public navigation links.

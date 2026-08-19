@@ -9,6 +9,14 @@ import { decryptSecret } from "./crypto";
 
 let database: ReturnType<typeof drizzle> | undefined;
 
+export function queryRows<T>(result: unknown): T[] {
+  if (Array.isArray(result)) return result as T[];
+  if (result && typeof result === "object" && Array.isArray((result as { rows?: unknown }).rows)) {
+    return (result as { rows: T[] }).rows;
+  }
+  return [];
+}
+
 export function getDb() {
   if (!database) {
     const connectionString = process.env.NEON_DATABASE_URL;
@@ -178,7 +186,8 @@ export async function isAccessBanned(userId: number, email: string, ipAddress?: 
 
 export async function getAnalytics(userId: number) {
   const since = new Date(Date.now() - 1000 * 60 * 60 * 24 * 14);
-  return await getDb().execute(sql`SELECT TO_CHAR(day, 'Mon DD') AS day, requests, (input_tokens + output_tokens)::int AS tokens, CASE WHEN requests > 0 THEN ROUND(total_latency_ms::numeric / requests)::int ELSE 0 END AS latency, CASE WHEN requests > 0 THEN ROUND(100.0 * error_count / requests, 1) ELSE 0 END AS error_rate FROM usage_daily WHERE user_id = ${userId} AND day >= ${since.toISOString().slice(0, 10)}::date ORDER BY day`) as unknown as { day: string; requests: number; tokens: number; latency: number; error_rate: number }[];
+  const result = await getDb().execute(sql`SELECT TO_CHAR(day, 'Mon DD') AS day, requests, (input_tokens + output_tokens)::int AS tokens, CASE WHEN requests > 0 THEN ROUND(total_latency_ms::numeric / requests)::int ELSE 0 END AS latency, CASE WHEN requests > 0 THEN ROUND(100.0 * error_count / requests, 1) ELSE 0 END AS error_rate FROM usage_daily WHERE user_id = ${userId} AND day >= ${since.toISOString().slice(0, 10)}::date ORDER BY day`);
+  return queryRows<{ day: string; requests: number; tokens: number; latency: number; error_rate: number }>(result);
 }
 
 export async function getOverview(userId: number) {
