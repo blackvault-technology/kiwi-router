@@ -84,7 +84,7 @@ function Capability({ icon: Icon, eyebrow, title, children }: { icon: React.Comp
 }
 
 function PublicFooter() {
-  return <footer className="border-t border-white/[0.07] bg-[#080a08] py-10"><div className="mx-auto flex max-w-7xl flex-col gap-8 px-5 sm:flex-row sm:items-end sm:justify-between sm:px-7"><div><Wordmark /><p className="mt-5 max-w-md text-sm leading-6 text-zinc-500">CloudHug's Kiwi Router is a Blackvault Technology and Cloud Hug by Blackvault product.</p></div><nav className="flex flex-wrap gap-x-5 gap-y-3 text-sm text-zinc-500"><Link href="/docs" className="hover:text-white">Docs</Link><Link href="/about" className="hover:text-white">About</Link><Link href="/terms" className="hover:text-white">Terms</Link><Link href="/privacy" className="hover:text-white">Privacy</Link><Link href="/acceptable-use" className="hover:text-white">Acceptable use</Link></nav></div></footer>;
+  return <footer className="border-t border-white/[0.07] bg-[#080a08] py-10"><div className="mx-auto flex max-w-7xl flex-col gap-8 px-5 sm:flex-row sm:items-end sm:justify-between sm:px-7"><div><Wordmark /><p className="mt-5 max-w-md text-sm leading-6 text-zinc-500">CloudHug's Kiwi Router is a Blackvault Technology and Cloud Hug by Blackvault product.</p></div><nav className="flex flex-wrap gap-x-5 gap-y-3 text-sm text-zinc-500"><Link href="/docs" className="hover:text-white">Docs</Link><Link href="/about" className="hover:text-white">About</Link><Link href="/terms" className="hover:text-white">Terms</Link><Link href="/privacy" className="hover:text-white">Privacy</Link><Link href="/acceptable-use" className="hover:text-white">Acceptable use</Link><Link href="/cookies" className="hover:text-white">Cookies</Link></nav></div></footer>;
 }
 
 export function LandingPage() {

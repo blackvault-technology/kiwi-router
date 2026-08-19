@@ -70,15 +70,15 @@
 - [x] Re-test founder sign-in and confirm it no longer returns the email-verification 403 error.
 - [x] Diagnose and fix the live `dashboard.overview` 500 response and resulting client `map` rendering error.
 - [x] Re-open the deployed Overview screen and confirm the browser no longer reports the prior `map` rendering error.
-- [ ] Make Overview, Playground, Models, API Keys, Analytics, and Admin dashboard views resilient to unavailable or malformed API data.
+- [x] Make Overview, Playground, Models, API Keys, Analytics, and Admin dashboard views resilient to unavailable or malformed API data.
 - [x] Refresh the responsive landing hero with a compact CloudHug badge, Kiwi Router naming, and an animated high-quality provider logo rail.
 - [x] Replace text-only provider labels with responsive, motion-safe vector provider marks in the animated rail.
 - [ ] Replace all remaining improvised provider placeholders with licensed vector or high-fidelity SVG brand assets, then validate and deploy the rail.
 - [ ] Push the finalized landing and provider-rail revision to Vercel, then verify it live on desktop and mobile.
 - [ ] Apply responsive visual and interaction polish across public pages and the authenticated dashboard.
 - [x] Design and add Neon schema migrations for secure coupon codes, redemptions, and referral relationships.
-- [ ] Build founder-only coupon management and one-per-IP, one-per-user coupon redemption with transactional Kiwi Credit ledger entries.
-- [ ] Build a referral program with privacy-safe referral codes, activation-based rewards, one-time reward claims, and anti-self-referral controls.
-- [ ] Add user-facing coupon redemption and referral views to the dashboard.
-- [ ] Extend live API documentation with canonical production URLs, gateway examples, authentication behavior, coupon/referral notes, and error references.
-- [ ] Add responsive Terms of Service, Privacy Policy, Acceptable Use, and Cookie Policy pages with public navigation links.
+- [x] Build founder-only coupon management and one-per-IP, one-per-user coupon redemption with transactional Kiwi Credit ledger entries.
+- [x] Build a referral program with privacy-safe referral codes, activation-based rewards, one-time reward claims, and anti-self-referral controls.
+- [x] Add user-facing coupon redemption and referral views to the dashboard.
+- [x] Extend live API documentation with canonical production URLs, gateway examples, authentication behavior, coupon/referral notes, and error references.
+- [x] Add responsive Terms of Service, Privacy Policy, Acceptable Use, and Cookie Policy pages with public navigation links.
