@@ -1,5 +1,5 @@
 import { hashPassword } from "./auth";
-import { createUser, getUserByEmail, promoteFounderRecord } from "./db";
+import { createUser, getUserByEmail, markEmailVerified, promoteFounderRecord } from "./db";
 import { FOUNDER_EMAIL } from "./founder";
 
 export function founderBootstrapConfigured() {
@@ -7,8 +7,10 @@ export function founderBootstrapConfigured() {
 }
 
 export async function ensureFounderAccount() {
-  if (await getUserByEmail(FOUNDER_EMAIL)) {
+  const existing = await getUserByEmail(FOUNDER_EMAIL);
+  if (existing) {
     await promoteFounderRecord();
+    if (!existing.emailVerifiedAt) await markEmailVerified(existing.id);
     return { created: false };
   }
   const password = process.env.FOUNDER_BOOTSTRAP_PASSWORD;
@@ -16,6 +18,7 @@ export async function ensureFounderAccount() {
     console.warn("[Founder] Bootstrap password is not configured; the founder account will be created when the founder registers.");
     return { created: false };
   }
-  await createUser({ name: "Kiwi Founder", email: FOUNDER_EMAIL, passwordHash: await hashPassword(password) });
+  const founder = await createUser({ name: "Kiwi Founder", email: FOUNDER_EMAIL, passwordHash: await hashPassword(password) });
+  await markEmailVerified(founder.id);
   return { created: true };
 }

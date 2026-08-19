@@ -64,3 +64,7 @@
 - [x] Ensure generated Vercel handler artifacts cannot interfere with the serverless handler test mocks.
 - [ ] Push the Umami script removal to GitHub and wait for a fresh Vercel production deployment.
 - [ ] Confirm the deployed HTML no longer includes an Umami script and the browser no longer requests `/umami`.
+- [x] Ensure the immutable founder bootstrap account is verified when created or recovered in the production database.
+- [ ] Push the founder bootstrap verification repair to GitHub and wait for a fresh Vercel production deployment.
+- [ ] Confirm the production founder record is verified after serverless bootstrap.
+- [ ] Re-test founder sign-in and confirm it no longer returns the email-verification 403 error.
