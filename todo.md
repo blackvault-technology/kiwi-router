@@ -51,3 +51,4 @@
 - [ ] Push the catch-all `.js` import fix and wait for a fresh Vercel production deployment.
 - [ ] Confirm the new Vercel function logs no longer report `ERR_MODULE_NOT_FOUND` for `/var/task/api/index`.
 - [ ] Confirm the live `/api/v1/health` endpoint returns a JSON response with HTTP 200.
+- [x] Move the shared Vercel handler implementation out of `api/` so each generated function bundles the handler directly.
