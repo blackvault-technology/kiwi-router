@@ -182,4 +182,4 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 - [x] Add a Neon-backed Google identity table and link it to existing users and sessions.
 - [x] Add secure Google OAuth state, callback, identity linking, and account-creation flow without replacing Neon auth storage.
 - [x] Add a Google sign-in button, configuration guidance, and regression coverage for callback/state/linking behavior.
-- [ ] Validate the Google OAuth migration and full auth regression suite; document the required Google Client ID, Client Secret, and redirect URI setup.
+- [x] Validate the Google OAuth migration and full auth regression suite; document the required Google Client ID, Client Secret, and redirect URI setup.
