@@ -247,7 +247,7 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 - [x] Implement durable fixes for all confirmed audit-events and chat-completions failure causes, including actionable stable error responses.
 - [x] Add end-to-end-shaped regression coverage for the confirmed failure paths and successful endpoint contracts.
 - [x] Run TypeScript and the complete regression suite, then save a deploy-ready checkpoint.
-- [ ] Validate the published production endpoints and close the release-gate checklist after deployment.
+- [x] Validate the published production endpoints and close the release-gate checklist after deployment.
 
 - [x] Deeply trace and fix the live endpoint failure instead of stopping at a repair-only checkpoint.
 
