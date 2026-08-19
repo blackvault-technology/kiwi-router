@@ -37,6 +37,9 @@ export function toPublicUser(user: User) {
     email: user.email,
     role: user.role,
     isDisabled: user.isDisabled,
+    stipendCredits: Number(user.stipendCredits),
+    purchasedCredits: Number(user.purchasedCredits),
+    kiwiCredits: Number(user.stipendCredits) + Number(user.purchasedCredits),
     createdAt: user.createdAt,
   };
 }

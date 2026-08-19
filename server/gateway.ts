@@ -1,7 +1,10 @@
 import { Readable, Transform } from "node:stream";
 import type { Express, Request, Response } from "express";
 import { decryptSecret } from "./crypto";
-import { checkRateLimit, getApiKeyOwner, getGatewayRoute, logRequest } from "./db";
+import { checkRateLimit, getApiKeyOwner, getGatewayRoute, isAccessBanned, logRequest } from "./db";
+import { canSpendCredits, spendCredits } from "./credits";
+import { getRequestIp } from "./founder";
+import { hashApiKey } from "./auth";
 
 function requestApiKey(req: Request) {
   const authorization = req.header("authorization") ?? "";
@@ -117,12 +120,17 @@ export function registerGateway(app: Express) {
     if (!apiKey) return respondError(res, 401, "Missing API key", "invalid_api_key");
     const owner = await getApiKeyOwner(apiKey);
     if (!owner) return respondError(res, 401, "Invalid or revoked API key", "invalid_api_key");
+    const ipAddress = getRequestIp(req.headers);
+    const userAgentHash = req.header("user-agent") ? hashApiKey(req.header("user-agent")!) : undefined;
+    if (await isAccessBanned(owner.user.id, owner.user.email, ipAddress)) return respondError(res, 403, "Access is blocked", "access_banned");
     const body = req.body as { model?: string; stream?: boolean; messages?: ChatMessage[]; max_tokens?: number; stream_options?: Record<string, unknown> };
     if (!body?.model) return respondError(res, 400, "The `model` field is required", "invalid_request_error");
-    const rate = await checkRateLimit(owner.user.id);
+    const rate = await checkRateLimit(owner.user.id, ipAddress);
     if (!rate.allowed) return respondError(res, 429, "Rate limit exceeded", "rate_limit_exceeded");
     const route = await getGatewayRoute(body.model);
     if (!route) return respondError(res, 404, `Model '${body.model}' is unavailable`, "model_not_found");
+    const creditCheck = await canSpendCredits(owner.user, route.model.slug, body.max_tokens ?? 1024);
+    if (!creditCheck.allowed) return respondError(res, 402, `Insufficient Kiwi Credits. ${creditCheck.required} credits are required; your balance is ${creditCheck.balance}.`, "insufficient_credits");
     if (!route.provider.encryptedApiKey) return respondError(res, 503, `The ${route.provider.displayName} provider is not configured`, "provider_not_configured");
 
     try {
@@ -134,7 +142,7 @@ export function registerGateway(app: Express) {
           : { "Content-Type": "application/json", Authorization: `Bearer ${decryptSecret(route.provider.encryptedApiKey)}` },
         body: JSON.stringify(isAnthropic ? anthopicPayload(body, route.model.upstreamId) : { ...body, model: route.model.upstreamId, ...(body.stream ? { stream_options: { ...body.stream_options, include_usage: true } } : {}) }),
       });
-      const metadata = { userId: owner.user.id, apiKeyId: owner.apiKey.id, modelSlug: route.model.slug, inputTokens: 0, outputTokens: 0, latencyMs: Date.now() - startedAt };
+      const metadata = { userId: owner.user.id, apiKeyId: owner.apiKey.id, modelSlug: route.model.slug, inputTokens: 0, outputTokens: 0, latencyMs: Date.now() - startedAt, ipAddress, userAgentHash };
       res.status(upstream.status);
       const type = upstream.headers.get("content-type") ?? "application/json";
       res.setHeader("Content-Type", type);
@@ -147,17 +155,20 @@ export function registerGateway(app: Express) {
       if (!body.stream) {
         if (isAnthropic) {
           const normalized = anthopicCompletion(await upstream.json(), route.model.slug);
-          await logRequest({ ...metadata, status: "success", inputTokens: normalized.inputTokens, outputTokens: normalized.outputTokens, latencyMs: Date.now() - startedAt });
+          const creditsDeducted = await spendCredits(owner.user.id, route.model.slug, normalized.inputTokens, normalized.outputTokens, `Gateway completion ${route.model.slug}`);
+          await logRequest({ ...metadata, status: "success", inputTokens: normalized.inputTokens, outputTokens: normalized.outputTokens, creditsDeducted, latencyMs: Date.now() - startedAt });
           return res.json(normalized.completion);
         }
         const payload = await upstream.json() as { usage?: { prompt_tokens?: number; completion_tokens?: number } };
-        await logRequest({ ...metadata, status: "success", inputTokens: Number(payload.usage?.prompt_tokens ?? 0), outputTokens: Number(payload.usage?.completion_tokens ?? 0), latencyMs: Date.now() - startedAt });
+        const inputTokens = Number(payload.usage?.prompt_tokens ?? 0); const outputTokens = Number(payload.usage?.completion_tokens ?? 0);
+        const creditsDeducted = await spendCredits(owner.user.id, route.model.slug, inputTokens, outputTokens, `Gateway completion ${route.model.slug}`);
+        await logRequest({ ...metadata, status: "success", inputTokens, outputTokens, creditsDeducted, latencyMs: Date.now() - startedAt });
         return res.json({ ...payload, model: route.model.slug });
       }
       const stream = Readable.fromWeb(upstream.body as import("node:stream/web").ReadableStream);
       const usage = { inputTokens: 0, outputTokens: 0 };
       const output = isAnthropic ? stream.pipe(createAnthropicSseAdapter(route.model.slug, usage)) : stream.pipe(createOpenAiUsageObserver(usage));
-      output.on("end", () => { void logRequest({ ...metadata, status: "success", inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, latencyMs: Date.now() - startedAt }); });
+      output.on("end", () => { void (async () => { const creditsDeducted = await spendCredits(owner.user.id, route.model.slug, usage.inputTokens, usage.outputTokens, `Gateway stream ${route.model.slug}`); await logRequest({ ...metadata, status: "success", inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, creditsDeducted, latencyMs: Date.now() - startedAt }); })(); });
       output.on("error", () => { void logRequest({ ...metadata, status: "error", latencyMs: Date.now() - startedAt, errorCode: "stream_error" }); });
       output.pipe(res);
     } catch (error) {

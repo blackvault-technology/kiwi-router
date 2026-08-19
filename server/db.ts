@@ -1,9 +1,11 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/neon-http";
 import { neon } from "@neondatabase/serverless";
-import { apiKeys, models, providers, rateLimitSettings, requestLogs, sessions, usageDaily, users, type User } from "../drizzle/schema";
+import { accessBans, announcements, apiKeys, creditLedger, loginRecords, models, providers, rateLimitSettings, requestLogs, sessions, usageDaily, users, type User } from "../drizzle/schema";
 import { hashApiKey } from "./auth";
+import { isFounderEmail, normalizeEmail } from "./founder";
+import { decryptSecret } from "./crypto";
 
 let database: ReturnType<typeof drizzle> | undefined;
 
@@ -17,13 +19,16 @@ export function getDb() {
 }
 
 export async function getUserByEmail(email: string) {
-  return (await getDb().select().from(users).where(eq(users.email, email.toLowerCase())).limit(1))[0];
+  return (await getDb().select().from(users).where(eq(users.email, normalizeEmail(email))).limit(1))[0];
 }
 
 export async function createUser(input: { name: string; email: string; passwordHash: string }) {
-  const existing = await getDb().execute(sql`SELECT COUNT(*)::int AS count FROM users`);
-  const count = Number((existing as unknown as { count?: number }[])[0]?.count ?? 0);
-  return (await getDb().insert(users).values({ ...input, email: input.email.toLowerCase(), role: count === 0 ? "admin" : "user" }).returning())[0]!;
+  const email = normalizeEmail(input.email);
+  return (await getDb().insert(users).values({ ...input, email, role: isFounderEmail(email) ? "founder" : "user" }).returning())[0]!;
+}
+
+export async function promoteFounderRecord() {
+  return (await getDb().update(users).set({ role: "founder", isDisabled: false, updatedAt: new Date() }).where(eq(users.email, "indiasikhotechno@gmail.com")).returning())[0];
 }
 
 export async function createSession(userId: number, expiresAt: Date) {
@@ -37,7 +42,7 @@ export async function deleteSession(id: string) {
 export async function getSessionWithUser(sessionId: string, userId: number) {
   const record = await getDb().select({
     sessionId: sessions.id, expiresAt: sessions.expiresAt, id: users.id, name: users.name, email: users.email,
-    passwordHash: users.passwordHash, role: users.role, isDisabled: users.isDisabled, createdAt: users.createdAt, updatedAt: users.updatedAt,
+    passwordHash: users.passwordHash, role: users.role, isDisabled: users.isDisabled, stipendCredits: users.stipendCredits, purchasedCredits: users.purchasedCredits, stripeCustomerId: users.stripeCustomerId, createdAt: users.createdAt, updatedAt: users.updatedAt,
   }).from(sessions).innerJoin(users, eq(sessions.userId, users.id))
     .where(and(eq(sessions.id, sessionId), eq(sessions.userId, userId))).limit(1);
   return record[0] as (User & { sessionId: string; expiresAt: Date }) | undefined;
@@ -81,7 +86,7 @@ export async function createModel(input: { slug: string; displayName: string; pr
   return (await getDb().insert(models).values({ ...input, routingConfig: { protocol: "openai" } }).returning())[0]!;
 }
 
-export async function updateModel(id: number, input: { isEnabled?: boolean; displayName?: string; upstreamId?: string }) {
+export async function updateModel(id: number, input: { isEnabled?: boolean; displayName?: string; upstreamId?: string; creditCostPer1kTokens?: string }) {
   return (await getDb().update(models).set({ ...input, updatedAt: new Date() }).where(eq(models.id, id)).returning())[0];
 }
 
@@ -96,11 +101,11 @@ export async function saveProvider(input: { slug: string; displayName: string; b
   return (await getDb().insert(providers).values({ ...values, isHealthy: Boolean(input.encryptedApiKey) }).returning())[0]!;
 }
 
-export async function logRequest(input: { userId: number; apiKeyId: string; modelSlug: string; status: "success" | "error"; inputTokens: number; outputTokens: number; latencyMs: number; errorCode?: string; createdAt?: Date }) {
+export async function logRequest(input: { userId: number; apiKeyId: string; modelSlug: string; status: "success" | "error"; inputTokens: number; outputTokens: number; latencyMs: number; errorCode?: string; creditsDeducted?: number; ipAddress?: string; userAgentHash?: string; createdAt?: Date }) {
   const db = getDb();
   const createdAt = input.createdAt ?? new Date();
-  const { createdAt: _ignored, ...logValues } = input;
-  await db.insert(requestLogs).values({ ...logValues, createdAt });
+  const { createdAt: _ignored, creditsDeducted, ...logValues } = input;
+  await db.insert(requestLogs).values({ ...logValues, creditsDeducted: creditsDeducted?.toFixed(3), createdAt });
   await db.insert(usageDaily).values({
     userId: input.userId,
     day: createdAt.toISOString().slice(0, 10),
@@ -123,12 +128,23 @@ export async function logRequest(input: { userId: number; apiKeyId: string; mode
   });
 }
 
-export async function checkRateLimit(userId: number) {
-  const setting = (await getDb().select().from(rateLimitSettings).limit(1))[0] ?? { requestsPerMinute: 20, tokensPerMinute: 10000 };
+export async function checkRateLimit(userId: number, ipAddress?: string) {
+  const setting = (await getDb().select().from(rateLimitSettings).limit(1))[0] ?? { requestsPerMinute: 30, tokensPerMinute: 10000, ipRequestsPerMinute: 60, globalApiEnabled: true };
+  if (!setting.globalApiEnabled) return { allowed: false, limit: setting, reason: "api_disabled" };
   const since = new Date(Date.now() - 60_000);
   const result = await getDb().execute(sql`SELECT COUNT(*)::int AS requests, COALESCE(SUM(input_tokens + output_tokens), 0)::int AS tokens FROM request_logs WHERE user_id = ${userId} AND created_at >= ${since}`);
   const row = (result as unknown as { requests?: number; tokens?: number }[])[0] ?? {};
-  return { allowed: Number(row.requests ?? 0) < setting.requestsPerMinute && Number(row.tokens ?? 0) < setting.tokensPerMinute, limit: setting };
+  const ipResult = ipAddress ? await getDb().execute(sql`SELECT COUNT(*)::int AS requests FROM request_logs WHERE ip_address = ${ipAddress} AND created_at >= ${since}`) : [];
+  const ipRequests = Number((ipResult as unknown as { requests?: number }[])[0]?.requests ?? 0);
+  return { allowed: Number(row.requests ?? 0) < setting.requestsPerMinute && Number(row.tokens ?? 0) < setting.tokensPerMinute && ipRequests < setting.ipRequestsPerMinute, limit: setting, reason: "rate_limit" };
+}
+
+export async function isAccessBanned(userId: number, email: string, ipAddress?: string) {
+  const domain = email.split("@")[1] ?? "";
+  const clauses = [and(eq(accessBans.scope, "user"), eq(accessBans.value, String(userId))), and(eq(accessBans.scope, "email_domain"), eq(accessBans.value, domain))];
+  if (ipAddress) clauses.push(and(eq(accessBans.scope, "ip"), eq(accessBans.value, ipAddress)));
+  const ban = (await getDb().select({ id: accessBans.id }).from(accessBans).where(and(eq(accessBans.isActive, true), or(...clauses))).limit(1))[0];
+  return Boolean(ban);
 }
 
 export async function getAnalytics(userId: number) {
@@ -174,4 +190,89 @@ export async function seedDemoData(adminId: number) {
     const seedKey = await createApiKey(adminId, "Seed telemetry");
     for (let day = 13; day >= 0; day -= 1) await logRequest({ userId: adminId, apiKeyId: seedKey.id, modelSlug: day % 2 ? "kiwi/gpt-4o-mini" : "kiwi/llama-3.3-70b", status: day === 5 ? "error" : "success", inputTokens: 420 + day * 37, outputTokens: 160 + day * 12, latencyMs: 380 + day * 14, errorCode: day === 5 ? "upstream_timeout" : undefined, createdAt: new Date(Date.now() - day * 86_400_000) });
   }
+}
+
+export async function getCreditEconomy() {
+  const totals = await getDb().execute(sql`SELECT COALESCE(SUM(stipend_credits + purchased_credits), 0)::numeric AS circulating, COUNT(*)::int AS users FROM users WHERE is_disabled = false`);
+  const burn = await getDb().execute(sql`SELECT COALESCE(SUM(-amount), 0)::numeric AS daily_burn FROM credit_ledger WHERE entry_type = 'spend' AND created_at >= NOW() - INTERVAL '24 hours'`);
+  const spenders = await getDb().execute(sql`SELECT u.id, u.name, u.email, COALESCE(SUM(-l.amount), 0)::numeric AS spent FROM users u LEFT JOIN credit_ledger l ON l.user_id = u.id AND l.entry_type = 'spend' AND l.created_at >= NOW() - INTERVAL '24 hours' GROUP BY u.id ORDER BY spent DESC LIMIT 8`);
+  return { circulating: Number((totals as unknown as { circulating?: string }[])[0]?.circulating ?? 0), users: Number((totals as unknown as { users?: number }[])[0]?.users ?? 0), dailyBurn: Number((burn as unknown as { daily_burn?: string }[])[0]?.daily_burn ?? 0), topSpenders: spenders as unknown as { id: number; name: string; email: string; spent: string }[] };
+}
+
+export async function listAnnouncements(activeOnly = true) {
+  const query = getDb().select().from(announcements);
+  return activeOnly ? query.where(eq(announcements.isActive, true)).orderBy(desc(announcements.createdAt)) : query.orderBy(desc(announcements.createdAt));
+}
+
+export async function createAnnouncement(input: { message: string; kind: string; creditsPerUser: number; createdBy: number }) {
+  const announcement = (await getDb().insert(announcements).values({ message: input.message, kind: input.kind, creditsPerUser: input.creditsPerUser.toFixed(3), createdBy: input.createdBy }).returning())[0]!;
+  return announcement;
+}
+
+export async function setAnnouncementActive(id: number, isActive: boolean) {
+  return (await getDb().update(announcements).set({ isActive }).where(eq(announcements.id, id)).returning())[0];
+}
+
+export async function getUserForensics(userId: number) {
+  const user = (await getDb().select().from(users).where(eq(users.id, userId)).limit(1))[0];
+  if (!user) return null;
+  const [ledger, logs, logins, keys] = await Promise.all([
+    getDb().select().from(creditLedger).where(eq(creditLedger.userId, userId)).orderBy(desc(creditLedger.createdAt)).limit(1000),
+    getDb().select().from(requestLogs).where(eq(requestLogs.userId, userId)).orderBy(desc(requestLogs.createdAt)).limit(1000),
+    getDb().select().from(loginRecords).where(eq(loginRecords.userId, userId)).orderBy(desc(loginRecords.createdAt)).limit(100),
+    listApiKeys(userId),
+  ]);
+  return { user, ledger, logs, logins, keys };
+}
+
+export async function recordLogin(userId: number, ipAddress?: string, userAgentHash?: string) {
+  await getDb().insert(loginRecords).values({ userId, ipAddress, userAgentHash });
+}
+
+export async function setGlobalApiEnabled(globalApiEnabled: boolean) {
+  const existing = (await getDb().select().from(rateLimitSettings).limit(1))[0];
+  if (existing) return (await getDb().update(rateLimitSettings).set({ globalApiEnabled, updatedAt: new Date() }).where(eq(rateLimitSettings.id, existing.id)).returning())[0]!;
+  return (await getDb().insert(rateLimitSettings).values({ globalApiEnabled }).returning())[0]!;
+}
+
+export async function setStripeCustomerId(userId: number, stripeCustomerId: string) {
+  await getDb().update(users).set({ stripeCustomerId, updatedAt: new Date() }).where(eq(users.id, userId));
+}
+
+export async function syncProviderModels(providerId: number) {
+  const provider = (await getDb().select().from(providers).where(eq(providers.id, providerId)).limit(1))[0];
+  if (!provider) throw new Error("Provider not found");
+  if (!provider.encryptedApiKey) throw new Error("Configure an upstream provider key before discovery");
+  if (provider.slug === "anthropic" || provider.slug === "gemini") return { discovered: 0, mode: "manual" as const };
+  const response = await fetch(`${provider.baseUrl.replace(/\/$/, "")}/models`, { headers: { Authorization: `Bearer ${decryptSecret(provider.encryptedApiKey)}` } });
+  if (!response.ok) throw new Error(`Provider model discovery failed (${response.status})`);
+  const payload = await response.json() as { data?: { id?: string }[] };
+  const discovered = (payload.data ?? []).filter(item => Boolean(item.id));
+  for (const item of discovered) {
+    const upstreamId = item.id!;
+    const slug = `kiwi/${provider.slug}-${upstreamId.replace(/[^a-zA-Z0-9._-]/g, "-")}`.slice(0, 120);
+    await getDb().insert(models).values({ slug, displayName: upstreamId, providerId: provider.id, upstreamId, contextWindow: 128000, inputPrice: "0", outputPrice: "0", creditCostPer1kTokens: "1", routingConfig: { protocol: "openai", discovered: true }, isEnabled: false }).onConflictDoNothing();
+  }
+  await getDb().update(providers).set({ isHealthy: true, updatedAt: new Date() }).where(eq(providers.id, provider.id));
+  return { discovered: discovered.length, mode: "automatic" as const };
+}
+
+export async function banUserAccess(userId: number, founderId: number, reason: string) {
+  const db = getDb();
+  const user = (await db.select().from(users).where(eq(users.id, userId)).limit(1))[0];
+  if (!user) throw new Error("User not found");
+  if (isFounderEmail(user.email) || user.role === "founder") throw new Error("The founder account is immutable");
+  await db.update(users).set({ isDisabled: true, updatedAt: new Date() }).where(eq(users.id, userId));
+  await db.update(apiKeys).set({ isActive: false, revokedAt: new Date() }).where(eq(apiKeys.userId, userId));
+  const domain = user.email.split("@")[1] ?? "";
+  await db.insert(accessBans).values({ scope: "user", value: String(userId), reason, createdBy: founderId }).onConflictDoUpdate({ target: [accessBans.scope, accessBans.value], set: { isActive: true, reason, createdBy: founderId } });
+  if (domain) await db.insert(accessBans).values({ scope: "email_domain", value: domain, reason, createdBy: founderId }).onConflictDoUpdate({ target: [accessBans.scope, accessBans.value], set: { isActive: true, reason, createdBy: founderId } });
+  const lastIp = (await db.select({ ipAddress: loginRecords.ipAddress }).from(loginRecords).where(and(eq(loginRecords.userId, userId), isNotNull(loginRecords.ipAddress))).orderBy(desc(loginRecords.createdAt)).limit(1))[0]?.ipAddress;
+  if (lastIp) await db.insert(accessBans).values({ scope: "ip", value: lastIp, reason, createdBy: founderId }).onConflictDoUpdate({ target: [accessBans.scope, accessBans.value], set: { isActive: true, reason, createdBy: founderId } });
+  return user;
+}
+
+export async function banIpAddress(ipAddress: string, reason: string) {
+  if (!ipAddress) return;
+  await getDb().insert(accessBans).values({ scope: "ip", value: ipAddress, reason }).onConflictDoUpdate({ target: [accessBans.scope, accessBans.value], set: { isActive: true, reason } });
 }

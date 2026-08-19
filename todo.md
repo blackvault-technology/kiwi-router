@@ -16,3 +16,15 @@
 - [x] Parse actual upstream token usage for non-streaming and streaming OpenAI-compatible and Anthropic responses before recording analytics.
 - [x] Enable Playground API-key selection using short-lived browser-session access to newly created raw keys, with a manual paste fallback for older keys.
 - [x] Extend automated coverage for authentication utilities, gateway provider adapters, and dashboard interaction helpers.
+- [x] Replace multi-admin behavior with the immutable single founder account `indiasikhotechno@gmail.com`, using the `founder` role and a strict `/admin` 403 guard for every other user.
+- [x] Add Kiwi Credits, non-expiring purchased credits, expiring stipend credits, a complete credit ledger, announcements, login/IP/device records, and ban records to Neon PostgreSQL.
+- [x] Enforce email alias normalization and founder-only account initialization in custom registration and authentication flows.
+- [x] Enforce API credit availability before completion requests and record real credit deductions after upstream usage is known, returning 402 for insufficient credit.
+- [x] Replace the existing Admin page with the single-founder economy monitor, user forensics, minting, announcement, kill-switch, model-cost, and provider-sync controls.
+- [x] Add provider model discovery for OpenAI-compatible `/models` endpoints and store the reviewed model routes in Neon.
+- [x] Add global and user/IP request protections, persisted bans, honeypot handling, and founder-safe user-management operations.
+- [x] Add daily 00:00 UTC stipend and expiry automation plus a payment-ready credit-pack foundation.
+- [x] Add automated test coverage for founder access rules, credit calculations, credit enforcement, and new admin helpers.
+- [x] Verify the Founder Edition visually, run all checks, and checkpoint the update.
+- [x] Configure the supplied founder bootstrap password as a server-side project secret and verify founder initialization.
+- [x] Prepare the deployment-gated daily 00:00 UTC Heartbeat endpoint; publish the checkpoint before creating the externally managed schedule.
