@@ -167,16 +167,50 @@ export async function getApiKeyOwner(plainKey: string) {
   return result[0];
 }
 
+export const KIWI_AUTO_MODEL_SLUG = "kiwi/auto";
+
+export type AutoModelRequestHints = { stream?: boolean; maxTokens?: number; messages?: Array<{ role?: string; content?: unknown }>; requireTools?: boolean; requireVision?: boolean; requireJsonMode?: boolean; requireReasoning?: boolean };
+
+type AutoCapabilities = { streaming?: boolean; vision?: boolean; tools?: boolean; jsonMode?: boolean; reasoning?: boolean };
+
+function autoConfig(row: { model: typeof models.$inferSelect }) {
+  const config = (row.model.routingConfig ?? {}) as { priority?: unknown; capabilities?: AutoCapabilities };
+  const priority = typeof config.priority === "number" && Number.isFinite(config.priority) ? config.priority : 100;
+  return { priority, capabilities: config.capabilities ?? {} };
+}
+
+function autoScore(row: { model: typeof models.$inferSelect; provider: typeof providers.$inferSelect }, hints: AutoModelRequestHints = {}) {
+  const { priority, capabilities } = autoConfig(row);
+  const content = hints.messages?.map(message => typeof message.content === "string" ? message.content : "").join(" ").toLowerCase() ?? "";
+  const taskBoost = /(json|structured|schema)/.test(content) && capabilities.jsonMode ? 22 : 0;
+  const reasoningBoost = /(reason|analy[sz]|math|step by step|complex)/.test(content) && capabilities.reasoning ? 18 : 0;
+  const toolBoost = (hints.requireTools || /(tool|function|browse|search)/.test(content)) && capabilities.tools ? 20 : 0;
+  const visionBoost = hints.requireVision && capabilities.vision ? 30 : 0;
+  const streamingBoost = hints.stream && capabilities.streaming ? 10 : 0;
+  const contextFit = hints.maxTokens && hints.maxTokens > row.model.contextWindow ? -1000 : 0;
+  const healthBoost = row.provider.isHealthy ? 25 : -45;
+  const cost = Number(row.model.creditCostPer1kTokens ?? 1);
+  const costScore = Number.isFinite(cost) ? Math.max(-15, 8 - cost) : 0;
+  return healthBoost + taskBoost + reasoningBoost + toolBoost + visionBoost + streamingBoost + costScore - Math.min(100, priority / 10) + contextFit;
+}
+
 export async function listModels(enabledOnly = true) {
   const query = getDb().select({ model: models, provider: providers }).from(models).innerJoin(providers, eq(models.providerId, providers.id));
   const rows = enabledOnly ? await query.where(and(eq(models.isEnabled, true), eq(providers.isEnabled, true))).orderBy(models.slug) : await query.orderBy(models.slug);
   const seen = new Set<string>();
-  return rows.filter(row => { if (seen.has(row.model.slug)) return false; seen.add(row.model.slug); return true; });
+  const deduped = rows.filter(row => { if (seen.has(row.model.slug)) return false; seen.add(row.model.slug); return true; });
+  if (!enabledOnly || rows.length === 0) return deduped;
+  const first = rows[0]!;
+  const autoModel = { ...first.model, id: 0, slug: KIWI_AUTO_MODEL_SLUG, displayName: "Kiwi Auto Model", upstreamId: "auto", routingConfig: { protocol: "openai" as const, priority: 1, capabilities: { streaming: true, vision: true, tools: true, jsonMode: true, reasoning: true } } };
+  const autoProvider = { ...first.provider, id: 0, slug: "kiwi", displayName: "Kiwi Router" };
+  return [{ model: autoModel, provider: autoProvider }, ...deduped];
 }
 
-export async function getGatewayRoutes(slug: string) {
-  return getDb().select({ model: models, provider: providers }).from(models).innerJoin(providers, eq(models.providerId, providers.id))
-    .where(and(eq(models.slug, slug), eq(models.isEnabled, true), eq(providers.isEnabled, true))).orderBy(sql`${providers.isHealthy} DESC`, sql`CASE WHEN (${models.routingConfig}->>'priority') ~ '^[0-9]+$' THEN (${models.routingConfig}->>'priority')::int ELSE 100 END ASC`, models.id);
+export async function getGatewayRoutes(slug: string, hints: AutoModelRequestHints = {}) {
+  const query = getDb().select({ model: models, provider: providers }).from(models).innerJoin(providers, eq(models.providerId, providers.id));
+  const rows = await query.where(and(eq(models.isEnabled, true), eq(providers.isEnabled, true))).orderBy(sql`${providers.isHealthy} DESC`, sql`CASE WHEN (${models.routingConfig}->>'priority') ~ '^[0-9]+$' THEN (${models.routingConfig}->>'priority')::int ELSE 100 END ASC`, models.id);
+  if (slug !== KIWI_AUTO_MODEL_SLUG) return rows.filter(row => row.model.slug === slug);
+  return rows.sort((a, b) => autoScore(b, hints) - autoScore(a, hints) || a.model.id - b.model.id);
 }
 
 export async function getGatewayRoute(slug: string) {

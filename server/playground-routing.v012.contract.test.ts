@@ -13,7 +13,7 @@ describe("v0.1.2 Playground and multi-provider routing", () => {
   });
 
   it("does not expose provider names in the user-facing model catalog", () => {
-    expect(dashboard).toContain("Provider selection is handled automatically.");
+    expect(dashboard).toContain("capability-aware selection");
     expect(dashboard).not.toContain('<p className="text-sm text-zinc-500">{provider.displayName}</p>');
   });
 

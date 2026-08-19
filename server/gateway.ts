@@ -1,7 +1,7 @@
 import { Readable, Transform } from "node:stream";
 import type { Express, Request, Response } from "express";
 import { decryptSecret } from "./crypto";
-import { checkRateLimit, getApiKeyOwner, getGatewayFallbackRoute, getGatewayRoute, getGatewayRoutes, getProviderRuntimeCredential, getRateLimitSettings, isAccessBanned, listModels, listProviders, logRequest } from "./db";
+import { checkRateLimit, getApiKeyOwner, getGatewayRoutes, getProviderRuntimeCredential, getRateLimitSettings, isAccessBanned, listModels, listProviders, logRequest } from "./db";
 import { canSpendCredits, spendCredits } from "./credits";
 import { getRequestIp } from "./founder";
 import { hashApiKey } from "./auth";
@@ -68,6 +68,8 @@ const completionSchema = z.object({
   stream: z.boolean().optional().default(false),
   max_tokens: z.number().int().min(1).max(8192).optional(),
   stream_options: z.record(z.string(), z.unknown()).optional(),
+  response_format: z.object({ type: z.enum(["text", "json_object"]) }).optional(),
+  tools: z.array(z.unknown()).max(128).optional(),
 }).strict();
 
 export function anthopicPayload(body: { messages?: ChatMessage[]; stream?: boolean; max_tokens?: number }, upstreamModel: string) {
@@ -166,12 +168,17 @@ function createOpenAiUsageObserver(usage: { inputTokens: number; outputTokens: n
 
 type GatewayRoute = Awaited<ReturnType<typeof getGatewayRoutes>>[number];
 
-type CompletionBody = { model: string; stream?: boolean; messages?: ChatMessage[]; max_tokens?: number; stream_options?: Record<string, unknown> };
+type CompletionBody = { model: string; stream?: boolean; messages?: ChatMessage[]; max_tokens?: number; stream_options?: Record<string, unknown>; response_format?: { type: "text" | "json_object" }; tools?: unknown[] };
+
+const routeCooldowns = new Map<number, number>();
+const ROUTE_COOLDOWN_MS = 30_000;
 
 async function requestUpstream(routes: GatewayRoute[], body: CompletionBody) {
   let lastError: unknown;
   for (let index = 0; index < routes.length; index += 1) {
     const candidate = routes[index]!;
+    const cooldownUntil = routeCooldowns.get(candidate.provider.id) ?? 0;
+    if (cooldownUntil > Date.now()) { lastError = new Error(`Provider ${candidate.provider.slug} is cooling down after a recent failure`); continue; }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 45_000);
     try {
@@ -192,10 +199,12 @@ async function requestUpstream(routes: GatewayRoute[], body: CompletionBody) {
         signal: controller.signal,
       });
       const hasFallback = index < routes.length - 1;
-      if (response.ok || response.status < 500 || !hasFallback) return { response, route: candidate, isAnthropic };
+      if (response.ok || response.status < 500 || !hasFallback) { routeCooldowns.delete(candidate.provider.id); return { response, route: candidate, isAnthropic }; }
       await response.body?.cancel();
+      routeCooldowns.set(candidate.provider.id, Date.now() + ROUTE_COOLDOWN_MS);
       lastError = new Error(`Upstream returned HTTP ${response.status}`);
     } catch (error) {
+      routeCooldowns.set(candidate.provider.id, Date.now() + ROUTE_COOLDOWN_MS);
       lastError = error;
       if (index === routes.length - 1) throw error;
     } finally {
@@ -246,22 +255,17 @@ export function registerGateway(app: Express) {
     const userAgentHash = req.header("user-agent") ? hashApiKey(req.header("user-agent")!) : undefined;
     const parsed = completionSchema.safeParse(req.body);
     if (!parsed.success) return respondError(res, 400, "Invalid chat completion payload", "invalid_request_error");
-    const body = parsed.data as { model: string; stream?: boolean; messages?: ChatMessage[]; max_tokens?: number; stream_options?: Record<string, unknown> };
+    const body = parsed.data as CompletionBody;
     const [banned, rate] = await Promise.all([isAccessBanned(owner.user.id, owner.user.email, ipAddress), checkRateLimit(owner.user.id, ipAddress)]);
     if (banned) return respondError(res, 403, "Access is blocked", "access_banned");
     if (!rate.allowed) return respondError(res, 429, "Rate limit exceeded", "rate_limit_exceeded");
-    let route = await getGatewayRoute(body.model);
-    if (!route) return respondError(res, 404, `Model '${body.model}' is unavailable`, "model_not_found");
-    const primaryRouting = (route.model.routingConfig ?? {}) as { fallbackProviderId?: number };
-    if (!route.provider.isHealthy && primaryRouting.fallbackProviderId) {
-      const fallback = await getGatewayFallbackRoute(body.model, primaryRouting.fallbackProviderId);
-      if (fallback) route = fallback;
-    }
+    const routes = await getGatewayRoutes(body.model, { stream: body.stream, maxTokens: body.max_tokens, messages: body.messages, requireTools: Boolean(body.tools?.length), requireJsonMode: body.response_format?.type === "json_object" });
+    if (!routes.length) return respondError(res, body.model === "kiwi/auto" ? 503 : 404, body.model === "kiwi/auto" ? "Kiwi Auto Model has no eligible provider routes. Configure at least one enabled, healthy model route." : `Model '${body.model}' is unavailable`, body.model === "kiwi/auto" ? "auto_route_unavailable" : "model_not_found");
+    let route = routes[0]!;
+    const responseModel = body.model;
     const creditCheck = await canSpendCredits(owner.user, route.model.slug, body.max_tokens ?? 1024);
     if (!creditCheck.allowed) return respondError(res, 402, `Insufficient Kiwi Credits. ${creditCheck.required} credits are required; your balance is ${creditCheck.balance}.`, "insufficient_credits");
     try {
-      const routes = await getGatewayRoutes(body.model);
-      if (!routes.length) return respondError(res, 503, "No configured provider route is available for this model", "provider_not_configured");
       const upstreamResult = await requestUpstream(routes, body);
       route = upstreamResult.route;
       const upstream = upstreamResult.response;
@@ -278,7 +282,7 @@ export function registerGateway(app: Express) {
       if (!body.stream) {
         try {
           if (isAnthropic) {
-            const normalized = anthopicCompletion(await upstream.json(), route.model.slug);
+            const normalized = anthopicCompletion(await upstream.json(), responseModel);
             const creditsDeducted = await spendCredits(owner.user.id, route.model.slug, normalized.inputTokens, normalized.outputTokens, `Gateway completion ${route.model.slug}`);
             await logRequest({ ...metadata, status: "success", inputTokens: normalized.inputTokens, outputTokens: normalized.outputTokens, creditsDeducted, latencyMs: Date.now() - startedAt });
             return res.json(normalized.completion);
@@ -287,7 +291,7 @@ export function registerGateway(app: Express) {
           const inputTokens = Number(payload.usage?.prompt_tokens ?? 0); const outputTokens = Number(payload.usage?.completion_tokens ?? 0);
           const creditsDeducted = await spendCredits(owner.user.id, route.model.slug, inputTokens, outputTokens, `Gateway completion ${route.model.slug}`);
           await logRequest({ ...metadata, status: "success", inputTokens, outputTokens, creditsDeducted, latencyMs: Date.now() - startedAt });
-          return res.json({ ...payload, model: route.model.slug });
+          return res.json({ ...payload, model: responseModel });
         } catch {
           await logRequest({ ...metadata, status: "error", errorCode: "invalid_upstream_json", latencyMs: Date.now() - startedAt });
           return respondError(res, 502, "The provider returned an invalid completion response.", "invalid_upstream_response");
@@ -295,7 +299,7 @@ export function registerGateway(app: Express) {
       }
       const stream = Readable.fromWeb(upstream.body as import("node:stream/web").ReadableStream);
       const usage = { inputTokens: 0, outputTokens: 0 };
-      const output = isAnthropic ? stream.pipe(createAnthropicSseAdapter(route.model.slug, usage)) : stream.pipe(createOpenAiUsageObserver(usage));
+      const output = isAnthropic ? stream.pipe(createAnthropicSseAdapter(responseModel, usage)) : stream.pipe(createOpenAiUsageObserver(usage));
       output.on("end", () => { void (async () => { const creditsDeducted = await spendCredits(owner.user.id, route.model.slug, usage.inputTokens, usage.outputTokens, `Gateway stream ${route.model.slug}`); await logRequest({ ...metadata, status: "success", inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, creditsDeducted, latencyMs: Date.now() - startedAt }); })(); });
       output.on("error", () => { void logRequest({ ...metadata, status: "error", latencyMs: Date.now() - startedAt, errorCode: "stream_error" }); });
       output.pipe(res);
