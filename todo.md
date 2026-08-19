@@ -217,3 +217,10 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 - [x] Remove provider names and provider-specific metadata from user-facing model lists while preserving internal route selection.
 - [x] Add model-based multi-provider route configuration with multiple providers per model, priority ordering, health-aware failover, and founder management coverage.
 - [x] Add regression coverage and validate the complete v0.1.2 release after the Playground and routing changes.
+
+
+## 2026-08-19 production gateway 502
+
+- [ ] Diagnose and fix production `/api/v1/chat/completions` returning HTTP 502.
+- [x] Add production-shaped regression coverage for provider route, credential, upstream response, timeout, and safe error handling.
+- [x] Document the separate Jiro CLI/source-quality issue without treating it as a Kiwi Router defect.

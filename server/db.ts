@@ -174,9 +174,13 @@ export async function listModels(enabledOnly = true) {
   return rows.filter(row => { if (seen.has(row.model.slug)) return false; seen.add(row.model.slug); return true; });
 }
 
+export async function getGatewayRoutes(slug: string) {
+  return getDb().select({ model: models, provider: providers }).from(models).innerJoin(providers, eq(models.providerId, providers.id))
+    .where(and(eq(models.slug, slug), eq(models.isEnabled, true), eq(providers.isEnabled, true))).orderBy(sql`${providers.isHealthy} DESC`, sql`COALESCE((${models.routingConfig}->>'priority')::int, 100) ASC`, models.id);
+}
+
 export async function getGatewayRoute(slug: string) {
-  return (await getDb().select({ model: models, provider: providers }).from(models).innerJoin(providers, eq(models.providerId, providers.id))
-    .where(and(eq(models.slug, slug), eq(models.isEnabled, true), eq(providers.isEnabled, true))).orderBy(sql`${providers.isHealthy} DESC`, sql`COALESCE((${models.routingConfig}->>'priority')::int, 100) ASC`, models.id).limit(1))[0];
+  return (await getGatewayRoutes(slug).then(rows => rows.slice(0, 1)))[0];
 }
 
 export async function getGatewayFallbackRoute(slug: string, providerId: number) {

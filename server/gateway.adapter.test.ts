@@ -5,10 +5,10 @@ import { readFileSync } from "node:fs";
 describe("Anthropic gateway adapter", () => {
   it("merges provider-level adapter configuration before model-level overrides", () => {
     const source = readFileSync(new URL("./gateway.ts", import.meta.url), "utf8");
-    expect(source).toContain("providerProtocol");
-    expect(source).toContain("providerHeaders");
+    expect(source).toContain("candidate.provider.protocol");
+    expect(source).toContain("candidate.provider.requestHeaders");
     expect(source).toContain("routing.protocol ?? providerProtocol");
-    expect(source).toContain("...(providerHeaders ?? {}), ...(routing.headers ?? {})");
+    expect(source).toContain("...(candidate.provider.requestHeaders ?? {}), ...(routing.headers ?? {})");
   });
   it("separates the system message and creates a provider-compatible request", () => {
     const payload = anthopicPayload({

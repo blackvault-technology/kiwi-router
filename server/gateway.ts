@@ -1,7 +1,7 @@
 import { Readable, Transform } from "node:stream";
 import type { Express, Request, Response } from "express";
 import { decryptSecret } from "./crypto";
-import { checkRateLimit, getApiKeyOwner, getGatewayFallbackRoute, getGatewayRoute, getProviderRuntimeCredential, getRateLimitSettings, isAccessBanned, listModels, listProviders, logRequest } from "./db";
+import { checkRateLimit, getApiKeyOwner, getGatewayFallbackRoute, getGatewayRoute, getGatewayRoutes, getProviderRuntimeCredential, getRateLimitSettings, isAccessBanned, listModels, listProviders, logRequest } from "./db";
 import { canSpendCredits, spendCredits } from "./credits";
 import { getRequestIp } from "./founder";
 import { hashApiKey } from "./auth";
@@ -164,6 +164,40 @@ function createOpenAiUsageObserver(usage: { inputTokens: number; outputTokens: n
   });
 }
 
+type GatewayRoute = Awaited<ReturnType<typeof getGatewayRoutes>>[number];
+
+type CompletionBody = { model: string; stream?: boolean; messages?: ChatMessage[]; max_tokens?: number; stream_options?: Record<string, unknown> };
+
+async function requestUpstream(routes: GatewayRoute[], body: CompletionBody) {
+  let lastError: unknown;
+  for (const candidate of routes) {
+    const credential = await getProviderRuntimeCredential(candidate.provider.id);
+    if (!credential) { lastError = new Error("Provider credential is not configured"); continue; }
+    const routing = (candidate.model.routingConfig ?? {}) as { protocol?: "openai" | "anthropic" | "gemini"; headers?: Record<string, string> };
+    const providerProtocol = candidate.provider.protocol as "openai" | "anthropic" | "gemini" | undefined;
+    const protocol = routing.protocol ?? providerProtocol ?? (candidate.provider.slug === "anthropic" ? "anthropic" : "openai");
+    const isAnthropic = protocol === "anthropic";
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 45_000);
+    try {
+      const baseUrl = assertSafeUpstreamUrl(candidate.provider.baseUrl);
+      const response = await fetch(`${baseUrl.toString().replace(/\/$/, "")}${isAnthropic ? "/messages" : "/chat/completions"}`, {
+        method: "POST",
+        headers: isAnthropic ? { "Content-Type": "application/json", "x-api-key": credential, "anthropic-version": "2023-06-01", ...(candidate.provider.requestHeaders ?? {}), ...(routing.headers ?? {}) } : { "Content-Type": "application/json", Authorization: `Bearer ${credential}`, ...(candidate.provider.requestHeaders ?? {}), ...(routing.headers ?? {}) },
+        body: JSON.stringify(isAnthropic ? anthopicPayload(body, candidate.model.upstreamId) : { ...body, model: candidate.model.upstreamId, ...(body.stream ? { stream_options: { ...body.stream_options, include_usage: true } } : {}) }),
+        signal: controller.signal,
+      });
+      if (response.ok || response.status < 500 || !routes.slice(routes.indexOf(candidate) + 1).length) return { response, route: candidate, isAnthropic };
+      await response.body?.cancel();
+      lastError = new Error(`Upstream returned HTTP ${response.status}`);
+    } catch (error) {
+      lastError = error;
+      if (!routes.slice(routes.indexOf(candidate) + 1).length) throw error;
+    } finally { clearTimeout(timeout); }
+  }
+  throw lastError instanceof Error ? lastError : new Error("No configured provider route is available");
+}
+
 export function registerGateway(app: Express) {
   app.get("/api/v1/health", (_req, res) => res.status(200).json({ status: "ok", service: "cloudhug-kiwi-router", timestamp: new Date().toISOString() }));
   app.get(["/api/status", "/api/v1/status"], async (_req, res) => {
@@ -206,27 +240,13 @@ export function registerGateway(app: Express) {
     }
     const creditCheck = await canSpendCredits(owner.user, route.model.slug, body.max_tokens ?? 1024);
     if (!creditCheck.allowed) return respondError(res, 402, `Insufficient Kiwi Credits. ${creditCheck.required} credits are required; your balance is ${creditCheck.balance}.`, "insufficient_credits");
-    const runtimeCredential = await getProviderRuntimeCredential(route.provider.id);
-    if (!runtimeCredential) return respondError(res, 503, `The ${route.provider.displayName} provider is not configured`, "provider_not_configured");
-
     try {
-      const routing = (route.model.routingConfig ?? {}) as { protocol?: "openai" | "anthropic" | "gemini"; headers?: Record<string, string> };
-      const providerProtocol = route.provider.protocol as "openai" | "anthropic" | "gemini" | undefined;
-      const providerHeaders = (route.provider.requestHeaders ?? {}) as Record<string, string>;
-      const protocol = routing.protocol ?? providerProtocol ?? (route.provider.slug === "anthropic" ? "anthropic" : "openai");
-      const isAnthropic = protocol === "anthropic";
-      const baseUrl = assertSafeUpstreamUrl(route.provider.baseUrl);
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 60_000);
-      const upstream = await fetch(`${baseUrl.toString().replace(/\/$/, "")}${isAnthropic ? "/messages" : "/chat/completions"}`, {
-        method: "POST",
-        headers: isAnthropic
-          ? { "Content-Type": "application/json", "x-api-key": runtimeCredential, "anthropic-version": "2023-06-01", ...(providerHeaders ?? {}), ...(routing.headers ?? {}) }
-          : { "Content-Type": "application/json", Authorization: `Bearer ${runtimeCredential}`, ...(providerHeaders ?? {}), ...(routing.headers ?? {}) },
-        body: JSON.stringify(isAnthropic ? anthopicPayload(body, route.model.upstreamId) : { ...body, model: route.model.upstreamId, ...(body.stream ? { stream_options: { ...body.stream_options, include_usage: true } } : {}) }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
+      const routes = await getGatewayRoutes(body.model);
+      if (!routes.length) return respondError(res, 503, "No configured provider route is available for this model", "provider_not_configured");
+      const upstreamResult = await requestUpstream(routes, body);
+      route = upstreamResult.route;
+      const upstream = upstreamResult.response;
+      const isAnthropic = upstreamResult.isAnthropic;
       const metadata = { userId: owner.user.id, apiKeyId: owner.apiKey.id, modelSlug: route.model.slug, inputTokens: 0, outputTokens: 0, latencyMs: Date.now() - startedAt, ipAddress, userAgentHash };
       res.status(upstream.status);
       const type = upstream.headers.get("content-type") ?? "application/json";
@@ -258,7 +278,7 @@ export function registerGateway(app: Express) {
       output.pipe(res);
     } catch (error) {
       await logRequest({ userId: owner.user.id, apiKeyId: owner.apiKey.id, modelSlug: body.model, status: "error", inputTokens: 0, outputTokens: 0, latencyMs: Date.now() - startedAt, errorCode: "gateway_network_error" });
-      return respondError(res, 502, error instanceof Error ? error.message : "The upstream provider could not be reached", "upstream_error");
+      return respondError(res, 502, "The configured provider routes could not complete this request. Please retry shortly.", "upstream_error");
     }
   });
 }
