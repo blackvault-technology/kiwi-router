@@ -134,12 +134,12 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 - [ ] Add provider/model test playground with non-billable handshake and sample request controls.
 - [x] Add API-key inventory scoped by user and provider with masked key identity and last-used data.
 - [ ] Add API-key revoke-all, rotate, expire, and emergency quarantine actions with confirmation.
-- [ ] Add user search, filtering, pagination, verification state, credit balance, and risk indicators.
-- [ ] Add user session inventory with revoke-all-sessions and suspicious-login review.
-- [ ] Add user API usage drill-down by model, provider, route, status, latency, and token totals.
+- [x] Add user search, filtering, pagination, verification state, credit balance, and risk indicators.
+- [x] Add user session inventory with revoke-all-sessions and suspicious-login review.
+- [x] Add user API usage drill-down by model, provider, route, status, latency, and token totals.
 - [ ] Add user credit ledger inspection, correction workflow, grant/revoke controls, and immutable audit entries.
 - [ ] Add rate-limit policy presets by user, IP, API key, provider, and model.
-- [ ] Add gateway request log search with safe metadata filters and exportable redacted diagnostics.
+- [x] Add gateway request log search with safe metadata filters and exportable redacted diagnostics.
 - [ ] Add audit-log explorer with event filters, actor, target, date range, and JSON-safe detail view.
 - [ ] Add admin dashboard overview cards for provider uptime, route coverage, model health, credits, and security events.
 - [ ] Add admin-console regression, responsive visual QA, and end-to-end founder mutation coverage for the expansion.

@@ -284,8 +284,37 @@ export async function getOverview(userId: number) {
   return { activeKeys: keys.filter(key => key.isActive).length, requests: totals.requests, tokens: totals.tokens, averageLatency: totals.requests ? Math.round(totals.latencyTotal / totals.requests) : 0, errorRate: totals.requests ? Number((100 * totals.errors / totals.requests).toFixed(1)) : 0, series: analytics };
 }
 
-export async function listUsers() {
-  return getDb().select({ id: users.id, name: users.name, email: users.email, role: users.role, isDisabled: users.isDisabled, createdAt: users.createdAt }).from(users).orderBy(desc(users.createdAt));
+export async function listUsers(input: { search?: string; status?: "all" | "active" | "disabled"; limit?: number; offset?: number } = {}) {
+  const search = input.search?.trim() ?? "";
+  const statusClause = input.status === "active" ? sql`AND u.is_disabled = false` : input.status === "disabled" ? sql`AND u.is_disabled = true` : sql``;
+  const result = await getDb().execute(sql`SELECT u.id, u.name, u.email, u.role, u.is_disabled AS "isDisabled", u.email_verified_at AS "emailVerifiedAt", u.stipend_credits AS "stipendCredits", u.purchased_credits AS "purchasedCredits", u.created_at AS "createdAt", (SELECT COUNT(*)::int FROM api_keys k WHERE k.user_id = u.id AND k.is_active = true) AS "activeKeys", (SELECT COUNT(*)::int FROM sessions s WHERE s.user_id = u.id AND s.expires_at > NOW()) AS "activeSessions", (SELECT COUNT(*)::int FROM request_logs r WHERE r.user_id = u.id AND r.created_at >= NOW() - INTERVAL '24 hours') AS "requests24h" FROM users u WHERE (${search} = '' OR u.email ILIKE '%' || ${search} || '%' OR u.name ILIKE '%' || ${search} || '%') ${statusClause} ORDER BY u.created_at DESC LIMIT ${Math.min(input.limit ?? 100, 500)} OFFSET ${Math.max(input.offset ?? 0, 0)}`);
+  return queryRows(result);
+}
+
+export async function listAdminUserSessions(userId: number) {
+  return queryRows(await getDb().execute(sql`SELECT s.id, s.user_id AS "userId", s.expires_at AS "expiresAt", s.created_at AS "createdAt" FROM sessions s WHERE s.user_id = ${userId} ORDER BY s.created_at DESC LIMIT 100`));
+}
+
+export async function listAdminUserUsage(userId: number) {
+  return queryRows(await getDb().execute(sql`SELECT model_slug AS "modelSlug", status, COUNT(*)::int AS requests, COALESCE(SUM(input_tokens), 0)::int AS "inputTokens", COALESCE(SUM(output_tokens), 0)::int AS "outputTokens", ROUND(AVG(latency_ms))::int AS "avgLatencyMs", MAX(created_at) AS "lastRequestAt" FROM request_logs WHERE user_id = ${userId} GROUP BY model_slug, status ORDER BY "lastRequestAt" DESC LIMIT 200`));
+}
+
+export async function listAdminUserLedger(userId: number) {
+  return queryRows(await getDb().execute(sql`SELECT id, amount, entry_type AS "entryType", bucket, description, expires_at AS "expiresAt", created_at AS "createdAt" FROM credit_ledger WHERE user_id = ${userId} ORDER BY created_at DESC LIMIT 200`));
+}
+
+export async function listAdminRequestLogs(input: { userId?: number; modelSlug?: string; status?: "success" | "error"; from?: string; to?: string; limit?: number } = {}) {
+  const result = await getDb().execute(sql`SELECT id, user_id AS "userId", api_key_id AS "apiKeyId", model_slug AS "modelSlug", status, input_tokens AS "inputTokens", output_tokens AS "outputTokens", latency_ms AS "latencyMs", error_code AS "errorCode", ip_address AS "ipAddress", created_at AS "createdAt" FROM request_logs WHERE (${input.userId ?? null} IS NULL OR user_id = ${input.userId ?? null}) AND (${input.modelSlug ?? null} IS NULL OR model_slug = ${input.modelSlug ?? null}) AND (${input.status ?? null} IS NULL OR status = ${input.status ?? null}) AND (${input.from ?? null} IS NULL OR created_at >= ${input.from ?? null}::timestamptz) AND (${input.to ?? null} IS NULL OR created_at < ${input.to ?? null}::timestamptz + INTERVAL '1 day') ORDER BY created_at DESC LIMIT ${Math.min(input.limit ?? 200, 500)}`);
+  return queryRows(result);
+}
+
+export async function listAdminSecurityEvents(input: { userId?: number; eventType?: string; from?: string; to?: string; limit?: number } = {}) {
+  const result = await getDb().execute(sql`SELECT id, event_type AS "eventType", user_id AS "userId", ip_address AS "ipAddress", metadata, created_at AS "createdAt" FROM security_events WHERE (${input.userId ?? null} IS NULL OR user_id = ${input.userId ?? null}) AND (${input.eventType ?? null} IS NULL OR event_type = ${input.eventType ?? null}) AND (${input.from ?? null} IS NULL OR created_at >= ${input.from ?? null}::timestamptz) AND (${input.to ?? null} IS NULL OR created_at < ${input.to ?? null}::timestamptz + INTERVAL '1 day') ORDER BY created_at DESC LIMIT ${Math.min(input.limit ?? 200, 500)}`);
+  return queryRows(result);
+}
+
+export async function revokeAllUserApiKeys(userId: number) {
+  return getDb().update(apiKeys).set({ isActive: false, revokedAt: new Date() }).where(and(eq(apiKeys.userId, userId), eq(apiKeys.isActive, true))).returning({ id: apiKeys.id });
 }
 
 export async function setUserDisabled(id: number, isDisabled: boolean) {

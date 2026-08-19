@@ -32,5 +32,17 @@ describe("deep founder console contracts", () => {
     expect(ui).toContain("Provider-scoped API-key inventory");
     expect(ui).toContain("Rotate credentials without exposing secrets");
   });
+
+  it("exposes founder user intelligence and redacted observability controls", () => {
+    expect(router).toContain("userSessions: adminProcedure");
+    expect(router).toContain("revokeUserApiKeys: adminProcedure");
+    expect(router).toContain("userUsage: adminProcedure");
+    expect(router).toContain("userLedger: adminProcedure");
+    expect(router).toContain("auditEvents: adminProcedure");
+    expect(ui).toContain("User intelligence & incident response");
+    expect(ui).toContain("Gateway diagnostics & audit explorer");
+    expect(ui).toContain("Revoke sessions");
+    expect(ui).toContain("Revoke API keys");
+  });
 });
 
