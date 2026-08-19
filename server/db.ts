@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { and, desc, eq, gte, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/neon-http";
 import { neon } from "@neondatabase/serverless";
-import { accessBans, announcements, apiKeys, apiKeyProviderAccess, authTokens, couponCodes, couponRedemptions, creditLedger, loginRecords, models, providerCredentials, providerHealthChecks, providers, rateLimitBuckets, rateLimitSettings, referrals, requestLogs, securityEvents, sessions, usageDaily, users, type User } from "../drizzle/schema";
+import { accessBans, announcements, apiKeys, apiKeyProviderAccess, authTokens, couponCodes, couponRedemptions, creditLedger, loginRecords, models, providerCredentials, providerHealthChecks, providers, rateLimitBuckets, rateLimitPolicies, rateLimitSettings, referrals, requestLogs, securityEvents, sessions, usageDaily, users, type User } from "../drizzle/schema";
 import { hashApiKey } from "./auth";
 import { isFounderEmail, normalizeEmail } from "./founder";
 import { decryptSecret } from "./crypto";
@@ -254,14 +254,20 @@ export async function logRequest(input: { userId: number; apiKeyId: string; mode
 }
 
 export async function checkRateLimit(userId: number, ipAddress?: string) {
-  const setting = (await getDb().select().from(rateLimitSettings).limit(1))[0] ?? { requestsPerMinute: 30, tokensPerMinute: 10000, ipRequestsPerMinute: 60, globalApiEnabled: true };
+  const db = getDb();
+  const setting = (await db.select().from(rateLimitSettings).limit(1))[0] ?? { requestsPerMinute: 30, tokensPerMinute: 10000, ipRequestsPerMinute: 60, globalApiEnabled: true };
   if (!setting.globalApiEnabled) return { allowed: false, limit: setting, reason: "api_disabled" };
+  const policyRows = await db.select().from(rateLimitPolicies).where(and(eq(rateLimitPolicies.isEnabled, true), or(and(eq(rateLimitPolicies.scope, "user"), eq(rateLimitPolicies.subject, String(userId))), ...(ipAddress ? [and(eq(rateLimitPolicies.scope, "ip"), eq(rateLimitPolicies.subject, ipAddress))] : []))));
+  const userPolicy = policyRows.find(policy => policy.scope === "user");
+  const ipPolicy = policyRows.find(policy => policy.scope === "ip");
+  const effective = { ...setting, requestsPerMinute: userPolicy?.requestsPerMinute ?? setting.requestsPerMinute, tokensPerMinute: userPolicy?.tokensPerMinute ?? setting.tokensPerMinute, ipRequestsPerMinute: ipPolicy?.requestsPerMinute ?? setting.ipRequestsPerMinute };
+  const limit = effective;
   const since = new Date(Date.now() - 60_000);
   const result = await getDb().execute(sql`SELECT COUNT(*)::int AS requests, COALESCE(SUM(input_tokens + output_tokens), 0)::int AS tokens FROM request_logs WHERE user_id = ${userId} AND created_at >= ${since}`);
   const row = (result as unknown as { requests?: number; tokens?: number }[])[0] ?? {};
   const ipResult = ipAddress ? await getDb().execute(sql`SELECT COUNT(*)::int AS requests FROM request_logs WHERE ip_address = ${ipAddress} AND created_at >= ${since}`) : [];
   const ipRequests = Number((ipResult as unknown as { requests?: number }[])[0]?.requests ?? 0);
-  return { allowed: Number(row.requests ?? 0) < setting.requestsPerMinute && Number(row.tokens ?? 0) < setting.tokensPerMinute && ipRequests < setting.ipRequestsPerMinute, limit: setting, reason: "rate_limit" };
+  return { allowed: Number(row.requests ?? 0) < effective.requestsPerMinute && Number(row.tokens ?? 0) < effective.tokensPerMinute && ipRequests < effective.ipRequestsPerMinute, limit, reason: "rate_limit" };
 }
 
 export async function isAccessBanned(userId: number, email: string, ipAddress?: string) {
@@ -308,8 +314,8 @@ export async function listAdminRequestLogs(input: { userId?: number; modelSlug?:
   return queryRows(result);
 }
 
-export async function listAdminSecurityEvents(input: { userId?: number; eventType?: string; from?: string; to?: string; limit?: number } = {}) {
-  const result = await getDb().execute(sql`SELECT id, event_type AS "eventType", user_id AS "userId", ip_address AS "ipAddress", metadata, created_at AS "createdAt" FROM security_events WHERE (${input.userId ?? null} IS NULL OR user_id = ${input.userId ?? null}) AND (${input.eventType ?? null} IS NULL OR event_type = ${input.eventType ?? null}) AND (${input.from ?? null} IS NULL OR created_at >= ${input.from ?? null}::timestamptz) AND (${input.to ?? null} IS NULL OR created_at < ${input.to ?? null}::timestamptz + INTERVAL '1 day') ORDER BY created_at DESC LIMIT ${Math.min(input.limit ?? 200, 500)}`);
+export async function listAdminSecurityEvents(input: { userId?: number; targetUserId?: number; eventType?: string; from?: string; to?: string; limit?: number } = {}) {
+  const result = await getDb().execute(sql`SELECT id, event_type AS "eventType", user_id AS "userId", ip_address AS "ipAddress", metadata, created_at AS "createdAt" FROM security_events WHERE (${input.userId ?? null} IS NULL OR user_id = ${input.userId ?? null}) AND (${input.targetUserId ?? null} IS NULL OR metadata->>'targetUserId' = ${input.targetUserId == null ? null : String(input.targetUserId)}) AND (${input.eventType ?? null} IS NULL OR event_type = ${input.eventType ?? null}) AND (${input.from ?? null} IS NULL OR created_at >= ${input.from ?? null}::timestamptz) AND (${input.to ?? null} IS NULL OR created_at < ${input.to ?? null}::timestamptz + INTERVAL '1 day') ORDER BY created_at DESC LIMIT ${Math.min(input.limit ?? 200, 500)}`);
   return queryRows(result);
 }
 
@@ -319,6 +325,20 @@ export async function revokeAllUserApiKeys(userId: number) {
 
 export async function setUserDisabled(id: number, isDisabled: boolean) {
   return (await getDb().update(users).set({ isDisabled, updatedAt: new Date() }).where(eq(users.id, id)).returning())[0];
+}
+
+export async function listRateLimitPolicies() {
+  return getDb().select().from(rateLimitPolicies).orderBy(rateLimitPolicies.scope, rateLimitPolicies.subject);
+}
+
+export async function saveRateLimitPolicy(input: { scope: string; subject: string; requestsPerMinute: number; tokensPerMinute: number; isEnabled: boolean }) {
+  const existing = (await getDb().select({ id: rateLimitPolicies.id }).from(rateLimitPolicies).where(and(eq(rateLimitPolicies.scope, input.scope), eq(rateLimitPolicies.subject, input.subject))).limit(1))[0];
+  if (existing) return (await getDb().update(rateLimitPolicies).set({ ...input, updatedAt: new Date() }).where(eq(rateLimitPolicies.id, existing.id)).returning())[0]!;
+  return (await getDb().insert(rateLimitPolicies).values(input).returning())[0]!;
+}
+
+export async function setRateLimitPolicyEnabled(id: number, isEnabled: boolean) {
+  return (await getDb().update(rateLimitPolicies).set({ isEnabled, updatedAt: new Date() }).where(eq(rateLimitPolicies.id, id)).returning())[0];
 }
 
 export async function getRateLimitSettings() {

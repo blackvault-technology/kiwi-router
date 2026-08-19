@@ -34,6 +34,19 @@ export async function addCredits(input: { userId: number; amount: number; bucket
   return creditSummary(input.userId);
 }
 
+export async function adjustCredits(input: { userId: number; amount: number; bucket: CreditBucket; description: string }) {
+  if (!Number.isFinite(input.amount) || input.amount === 0 || Math.abs(input.amount) > 1_000_000) throw new Error("Credit adjustment is out of bounds");
+  const db = getDb();
+  const column = input.bucket === "stipend" ? users.stipendCredits : users.purchasedCredits;
+  if (input.amount > 0) {
+    await db.update(users).set({ [input.bucket === "stipend" ? "stipendCredits" : "purchasedCredits"]: sql`${column} + ${input.amount}`, updatedAt: new Date() }).where(eq(users.id, input.userId));
+  } else {
+    await db.update(users).set({ [input.bucket === "stipend" ? "stipendCredits" : "purchasedCredits"]: sql`GREATEST(${column} + ${input.amount}, 0)`, updatedAt: new Date() }).where(eq(users.id, input.userId));
+  }
+  await db.insert(creditLedger).values({ userId: input.userId, amount: input.amount.toFixed(3), entryType: input.amount > 0 ? "grant" : "expiry", bucket: input.bucket, description: input.description });
+  return creditSummary(input.userId);
+}
+
 export async function quoteCredits(modelSlug: string, inputTokens: number, outputTokens: number) {
   const model = (await getDb().select({ creditCost: models.creditCostPer1kTokens }).from(models).where(eq(models.slug, modelSlug)).limit(1))[0];
   if (!model) return 0;

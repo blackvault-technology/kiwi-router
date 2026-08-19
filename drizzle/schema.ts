@@ -147,6 +147,17 @@ export const rateLimitSettings = pgTable("rate_limit_settings", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const rateLimitPolicies = pgTable("rate_limit_policies", {
+  id: serial("id").primaryKey(),
+  scope: varchar("scope", { length: 24 }).notNull(),
+  subject: varchar("subject", { length: 160 }).notNull(),
+  requestsPerMinute: integer("requests_per_minute").notNull().default(30),
+  tokensPerMinute: integer("tokens_per_minute").notNull().default(10000),
+  isEnabled: boolean("is_enabled").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [uniqueIndex("rate_limit_policies_scope_subject_idx").on(table.scope, table.subject), index("rate_limit_policies_scope_idx").on(table.scope)]);
+
 export const creditLedger = pgTable("credit_ledger", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),

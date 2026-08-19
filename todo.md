@@ -137,9 +137,9 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 - [x] Add user search, filtering, pagination, verification state, credit balance, and risk indicators.
 - [x] Add user session inventory with revoke-all-sessions and suspicious-login review.
 - [x] Add user API usage drill-down by model, provider, route, status, latency, and token totals.
-- [ ] Add user credit ledger inspection, correction workflow, grant/revoke controls, and immutable audit entries.
-- [ ] Add rate-limit policy presets by user, IP, API key, provider, and model.
+- [x] Add user credit ledger inspection, correction workflow, grant/revoke controls, and immutable audit entries.
+- [x] Add rate-limit policy presets by user, IP, API key, provider, and model.
 - [x] Add gateway request log search with safe metadata filters and exportable redacted diagnostics.
-- [ ] Add audit-log explorer with event filters, actor, target, date range, and JSON-safe detail view.
-- [ ] Add admin dashboard overview cards for provider uptime, route coverage, model health, credits, and security events.
-- [ ] Add admin-console regression, responsive visual QA, and end-to-end founder mutation coverage for the expansion.
+- [x] Add audit-log explorer with event filters, actor, target, date range, and JSON-safe detail view.
+- [x] Add admin dashboard overview cards for provider uptime, route coverage, model health, credits, and security events.
+- [x] Add admin-console regression, responsive visual QA, and end-to-end founder mutation coverage for the expansion.

@@ -43,6 +43,10 @@ describe("deep founder console contracts", () => {
     expect(ui).toContain("Gateway diagnostics & audit explorer");
     expect(ui).toContain("Revoke sessions");
     expect(ui).toContain("Revoke API keys");
+    expect(router).toContain("rateLimitPolicies: adminProcedure");
+    expect(router).toContain("adjustUserCredits: adminProcedure");
+    expect(ui).toContain("Scoped rate-limit policy presets");
+    expect(ui).toContain("Provider uptime");
   });
 });
 

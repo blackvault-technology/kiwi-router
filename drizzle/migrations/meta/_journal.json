@@ -71,6 +71,13 @@
       "when": 1787142631316,
       "tag": "0009_adorable_molecule_man",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1787143383173,
+      "tag": "0010_funny_firestar",
+      "breakpoints": true
     }
   ]
 }
