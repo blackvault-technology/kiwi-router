@@ -20,8 +20,22 @@ describe("production API failure repairs", () => {
 
   it("fails over across provider routes and returns a stable JSON error on upstream failure", () => {
     expect(gateway).toContain("async function requestUpstream(routes: GatewayRoute[]");
-    expect(gateway).toContain("Upstream returned HTTP ${response.status}");
+    expect(gateway).toContain("Provider ${candidate.provider.slug} has no active credential");
+    expect(gateway).toContain("const hasFallback = index < routes.length - 1");
+    expect(gateway).toContain("async function readUpstreamFailure(response: globalThis.Response)");
     expect(gateway).toContain('"The configured provider routes could not complete this request. Please retry shortly."');
     expect(gateway).toContain('"upstream_error"');
+    expect(gateway).toContain('"gateway_unavailable"');
+  });
+
+  it("protects the completion path from malformed successful provider payloads", () => {
+    expect(gateway).toContain('"invalid_upstream_json"');
+    expect(gateway).toContain('"The provider returned an invalid completion response."');
+    expect(gateway).toContain("Array.isArray(payload?.content)");
+  });
+
+  it("makes route priority sorting safe for malformed routing metadata", () => {
+    expect(db).toContain("~ '^[0-9]+$'");
+    expect(db).toContain("ELSE 100 END ASC");
   });
 });

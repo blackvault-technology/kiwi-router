@@ -20,7 +20,7 @@ describe("v0.1.2 Playground and multi-provider routing", () => {
   it("deduplicates public models and prefers healthy routes by priority internally", () => {
     expect(db).toContain("const seen = new Set<string>()");
     expect(db).toContain("providers.isHealthy} DESC");
-    expect(db).toContain("priority')::int, 100) ASC");
+    expect(db).toContain("priority')::int ELSE 100 END ASC");
   });
 
   it("allows multiple provider-backed routes for the same public model slug", () => {

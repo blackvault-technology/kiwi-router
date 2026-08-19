@@ -98,7 +98,7 @@ export function anthopicCompletion(payload: any, publicModel: string) {
       model: publicModel,
       choices: [{
         index: 0,
-        message: { role: "assistant", content: (payload?.content ?? []).filter((part: any) => part.type === "text").map((part: any) => part.text).join("") },
+        message: { role: "assistant", content: (Array.isArray(payload?.content) ? payload.content : []).filter((part: any) => part && part.type === "text" && typeof part.text === "string").map((part: any) => part.text).join("") },
         finish_reason: payload?.stop_reason ?? "stop",
       }],
       usage: { prompt_tokens: inputTokens, completion_tokens: outputTokens, total_tokens: inputTokens + outputTokens },
@@ -170,16 +170,20 @@ type CompletionBody = { model: string; stream?: boolean; messages?: ChatMessage[
 
 async function requestUpstream(routes: GatewayRoute[], body: CompletionBody) {
   let lastError: unknown;
-  for (const candidate of routes) {
-    const credential = await getProviderRuntimeCredential(candidate.provider.id);
-    if (!credential) { lastError = new Error("Provider credential is not configured"); continue; }
-    const routing = (candidate.model.routingConfig ?? {}) as { protocol?: "openai" | "anthropic" | "gemini"; headers?: Record<string, string> };
-    const providerProtocol = candidate.provider.protocol as "openai" | "anthropic" | "gemini" | undefined;
-    const protocol = routing.protocol ?? providerProtocol ?? (candidate.provider.slug === "anthropic" ? "anthropic" : "openai");
-    const isAnthropic = protocol === "anthropic";
+  for (let index = 0; index < routes.length; index += 1) {
+    const candidate = routes[index]!;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 45_000);
     try {
+      const credential = await getProviderRuntimeCredential(candidate.provider.id);
+      if (!credential) {
+        lastError = new Error(`Provider ${candidate.provider.slug} has no active credential`);
+        continue;
+      }
+      const routing = (candidate.model.routingConfig ?? {}) as { protocol?: "openai" | "anthropic" | "gemini"; headers?: Record<string, string> };
+      const providerProtocol = candidate.provider.protocol as "openai" | "anthropic" | "gemini" | undefined;
+      const protocol = routing.protocol ?? providerProtocol ?? (candidate.provider.slug === "anthropic" ? "anthropic" : "openai");
+      const isAnthropic = protocol === "anthropic";
       const baseUrl = assertSafeUpstreamUrl(candidate.provider.baseUrl);
       const response = await fetch(`${baseUrl.toString().replace(/\/$/, "")}${isAnthropic ? "/messages" : "/chat/completions"}`, {
         method: "POST",
@@ -187,15 +191,29 @@ async function requestUpstream(routes: GatewayRoute[], body: CompletionBody) {
         body: JSON.stringify(isAnthropic ? anthopicPayload(body, candidate.model.upstreamId) : { ...body, model: candidate.model.upstreamId, ...(body.stream ? { stream_options: { ...body.stream_options, include_usage: true } } : {}) }),
         signal: controller.signal,
       });
-      if (response.ok || response.status < 500 || !routes.slice(routes.indexOf(candidate) + 1).length) return { response, route: candidate, isAnthropic };
+      const hasFallback = index < routes.length - 1;
+      if (response.ok || response.status < 500 || !hasFallback) return { response, route: candidate, isAnthropic };
       await response.body?.cancel();
       lastError = new Error(`Upstream returned HTTP ${response.status}`);
     } catch (error) {
       lastError = error;
-      if (!routes.slice(routes.indexOf(candidate) + 1).length) throw error;
-    } finally { clearTimeout(timeout); }
+      if (index === routes.length - 1) throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
   }
   throw lastError instanceof Error ? lastError : new Error("No configured provider route is available");
+}
+
+async function readUpstreamFailure(response: globalThis.Response) {
+  const raw = await response.text().catch(() => "");
+  try {
+    const parsed = JSON.parse(raw) as { error?: { message?: unknown } | string; message?: unknown };
+    const message = typeof parsed.error === "string" ? parsed.error : typeof parsed.error?.message === "string" ? parsed.error.message : typeof parsed.message === "string" ? parsed.message : "The upstream provider rejected the request.";
+    return message.slice(0, 300);
+  } catch {
+    return "The upstream provider returned an invalid error response.";
+  }
 }
 
 export function registerGateway(app: Express) {
@@ -219,6 +237,7 @@ export function registerGateway(app: Express) {
   });
   app.post("/api/v1/chat/completions", async (req, res) => {
     const startedAt = Date.now();
+    try {
     const apiKey = requestApiKey(req);
     if (!apiKey) return respondError(res, 401, "Missing API key", "invalid_api_key");
     const owner = await getApiKeyOwner(apiKey);
@@ -248,27 +267,31 @@ export function registerGateway(app: Express) {
       const upstream = upstreamResult.response;
       const isAnthropic = upstreamResult.isAnthropic;
       const metadata = { userId: owner.user.id, apiKeyId: owner.apiKey.id, modelSlug: route.model.slug, inputTokens: 0, outputTokens: 0, latencyMs: Date.now() - startedAt, ipAddress, userAgentHash };
-      res.status(upstream.status);
-      const type = upstream.headers.get("content-type") ?? "application/json";
-      res.setHeader("Content-Type", type);
-      res.setHeader("Cache-Control", "no-cache, no-transform");
       if (!upstream.ok || !upstream.body) {
-        const errorPayload = await upstream.text();
-        await logRequest({ ...metadata, status: "error", errorCode: `upstream_${upstream.status}` });
-        return res.send(errorPayload);
+        const message = await readUpstreamFailure(upstream);
+        await logRequest({ ...metadata, status: "error", errorCode: `upstream_${upstream.status}`, latencyMs: Date.now() - startedAt });
+        return respondError(res, 502, message, "upstream_error");
       }
+      res.status(upstream.status);
+      res.setHeader("Content-Type", upstream.headers.get("content-type") ?? "application/json");
+      res.setHeader("Cache-Control", "no-cache, no-transform");
       if (!body.stream) {
-        if (isAnthropic) {
-          const normalized = anthopicCompletion(await upstream.json(), route.model.slug);
-          const creditsDeducted = await spendCredits(owner.user.id, route.model.slug, normalized.inputTokens, normalized.outputTokens, `Gateway completion ${route.model.slug}`);
-          await logRequest({ ...metadata, status: "success", inputTokens: normalized.inputTokens, outputTokens: normalized.outputTokens, creditsDeducted, latencyMs: Date.now() - startedAt });
-          return res.json(normalized.completion);
+        try {
+          if (isAnthropic) {
+            const normalized = anthopicCompletion(await upstream.json(), route.model.slug);
+            const creditsDeducted = await spendCredits(owner.user.id, route.model.slug, normalized.inputTokens, normalized.outputTokens, `Gateway completion ${route.model.slug}`);
+            await logRequest({ ...metadata, status: "success", inputTokens: normalized.inputTokens, outputTokens: normalized.outputTokens, creditsDeducted, latencyMs: Date.now() - startedAt });
+            return res.json(normalized.completion);
+          }
+          const payload = await upstream.json() as { usage?: { prompt_tokens?: number; completion_tokens?: number } };
+          const inputTokens = Number(payload.usage?.prompt_tokens ?? 0); const outputTokens = Number(payload.usage?.completion_tokens ?? 0);
+          const creditsDeducted = await spendCredits(owner.user.id, route.model.slug, inputTokens, outputTokens, `Gateway completion ${route.model.slug}`);
+          await logRequest({ ...metadata, status: "success", inputTokens, outputTokens, creditsDeducted, latencyMs: Date.now() - startedAt });
+          return res.json({ ...payload, model: route.model.slug });
+        } catch {
+          await logRequest({ ...metadata, status: "error", errorCode: "invalid_upstream_json", latencyMs: Date.now() - startedAt });
+          return respondError(res, 502, "The provider returned an invalid completion response.", "invalid_upstream_response");
         }
-        const payload = await upstream.json() as { usage?: { prompt_tokens?: number; completion_tokens?: number } };
-        const inputTokens = Number(payload.usage?.prompt_tokens ?? 0); const outputTokens = Number(payload.usage?.completion_tokens ?? 0);
-        const creditsDeducted = await spendCredits(owner.user.id, route.model.slug, inputTokens, outputTokens, `Gateway completion ${route.model.slug}`);
-        await logRequest({ ...metadata, status: "success", inputTokens, outputTokens, creditsDeducted, latencyMs: Date.now() - startedAt });
-        return res.json({ ...payload, model: route.model.slug });
       }
       const stream = Readable.fromWeb(upstream.body as import("node:stream/web").ReadableStream);
       const usage = { inputTokens: 0, outputTokens: 0 };
@@ -279,6 +302,11 @@ export function registerGateway(app: Express) {
     } catch (error) {
       await logRequest({ userId: owner.user.id, apiKeyId: owner.apiKey.id, modelSlug: body.model, status: "error", inputTokens: 0, outputTokens: 0, latencyMs: Date.now() - startedAt, errorCode: "gateway_network_error" });
       return respondError(res, 502, "The configured provider routes could not complete this request. Please retry shortly.", "upstream_error");
+    }
+    } catch (error) {
+      console.error("[Kiwi Router] gateway request boundary failed", error instanceof Error ? error.message : "unknown error");
+      if (res.headersSent) return res.end();
+      return respondError(res, 503, "The gateway is temporarily unavailable. Please retry shortly.", "gateway_unavailable");
     }
   });
 }
