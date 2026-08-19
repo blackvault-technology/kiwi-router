@@ -45,3 +45,4 @@
 - [x] Correct the Vercel build-output configuration so the public root serves the Vite SPA instead of the bundled Node server source.
 - [ ] Push the Vercel build-output fix to the linked GitHub repository and trigger a new Vercel deployment.
 - [ ] Validate the redeployed Vercel site: `/` serves the SPA, `/about` rewrites to the SPA, and `/api/v1/health` returns a successful API response.
+- [x] Reserve `/api/*` for Vercel serverless functions before applying the SPA fallback rewrite.
