@@ -108,3 +108,14 @@
 - [x] Run responsive QA on all public routes at desktop and mobile breakpoints, fix any remaining layout or interaction issues, and record the results.
 - [ ] Create or use a non-founder QA account and run desktop/mobile browser QA across API keys, models, credits/coupons/referrals, analytics, and playground flows.
 - [ ] Add clearer in-page standard-user workflow guidance in Overview, Models, Analytics, and Playground, then re-validate the user workspace.
+- [x] Fix production `admin.syncProviderModels` returning HTTP 500, add regression coverage, and verify the repaired endpoint after deployment.
+- [x] Trace provider-sync runtime errors and document the safe failure behavior without exposing credentials or mutating provider data unexpectedly.
+
+પરિચ್ಛೇದ
+- [ ] Restore the prior dashboard-upgrade validation items after resolving the sync blocker: standard-user browser QA, deeper user guidance validation, and end-to-end founder management integration coverage.
+
+---
+
+## 2026-08-19 sync failure
+
+The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` returning HTTP 500 in production. Investigation is required before any provider synchronization is retried.

@@ -309,19 +309,36 @@ export async function setStripeCustomerId(userId: number, stripeCustomerId: stri
 export async function syncProviderModels(providerId: number) {
   const provider = (await getDb().select().from(providers).where(eq(providers.id, providerId)).limit(1))[0];
   if (!provider) throw new Error("Provider not found");
-  if (!provider.encryptedApiKey) throw new Error("Configure an upstream provider key before discovery");
-  if (provider.slug === "anthropic" || provider.slug === "gemini") return { discovered: 0, mode: "manual" as const };
-  const response = await fetch(`${provider.baseUrl.replace(/\/$/, "")}/models`, { headers: { Authorization: `Bearer ${decryptSecret(provider.encryptedApiKey)}` } });
-  if (!response.ok) throw new Error(`Provider model discovery failed (${response.status})`);
-  const payload = await response.json() as { data?: { id?: string }[] };
-  const discovered = (payload.data ?? []).filter(item => Boolean(item.id));
-  for (const item of discovered) {
-    const upstreamId = item.id!;
-    const slug = `kiwi/${provider.slug}-${upstreamId.replace(/[^a-zA-Z0-9._-]/g, "-")}`.slice(0, 120);
-    await getDb().insert(models).values({ slug, displayName: upstreamId, providerId: provider.id, upstreamId, contextWindow: 128000, inputPrice: "0", outputPrice: "0", creditCostPer1kTokens: "1", routingConfig: { protocol: "openai", discovered: true }, isEnabled: false }).onConflictDoNothing();
+  if (provider.slug === "anthropic" || provider.slug === "gemini") return { discovered: 0, mode: "manual" as const, ok: true, statusCode: null, detail: "This provider uses manual model routes" };
+  if (!provider.encryptedApiKey) return { discovered: 0, mode: "automatic" as const, ok: false, statusCode: null, detail: "Configure an upstream provider key before discovery" };
+
+  const startedAt = Date.now();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8_000);
+  try {
+    const response = await fetch(`${provider.baseUrl.replace(/\/$/, "")}/models`, {
+      headers: { Authorization: `Bearer ${decryptSecret(provider.encryptedApiKey)}` },
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      await getDb().update(providers).set({ isHealthy: false, updatedAt: new Date() }).where(eq(providers.id, provider.id));
+      return { discovered: 0, mode: "automatic" as const, ok: false, statusCode: response.status, detail: "Provider rejected model discovery" };
+    }
+    const payload = await response.json() as { data?: unknown };
+    const discovered = Array.isArray(payload.data) ? payload.data.filter((item): item is { id: string } => typeof item === "object" && item !== null && typeof (item as { id?: unknown }).id === "string" && Boolean((item as { id: string }).id)) : [];
+    for (const item of discovered) {
+      const upstreamId = item.id;
+      const slug = `kiwi/${provider.slug}-${upstreamId.replace(/[^a-zA-Z0-9._-]/g, "-")}`.slice(0, 120);
+      await getDb().insert(models).values({ slug, displayName: upstreamId, providerId: provider.id, upstreamId, contextWindow: 128000, inputPrice: "0", outputPrice: "0", creditCostPer1kTokens: "1", routingConfig: { protocol: "openai", discovered: true }, isEnabled: false }).onConflictDoNothing();
+    }
+    await getDb().update(providers).set({ isHealthy: true, updatedAt: new Date() }).where(eq(providers.id, provider.id));
+    return { discovered: discovered.length, mode: "automatic" as const, ok: true, statusCode: response.status, latencyMs: Date.now() - startedAt, detail: "Model catalog synchronized" };
+  } catch {
+    await getDb().update(providers).set({ isHealthy: false, updatedAt: new Date() }).where(eq(providers.id, provider.id));
+    return { discovered: 0, mode: "automatic" as const, ok: false, statusCode: null, latencyMs: Date.now() - startedAt, detail: "Provider did not complete model discovery" };
+  } finally {
+    clearTimeout(timeout);
   }
-  await getDb().update(providers).set({ isHealthy: true, updatedAt: new Date() }).where(eq(providers.id, provider.id));
-  return { discovered: discovered.length, mode: "automatic" as const };
 }
 
 /** Performs a non-billable credential and catalog handshake without exposing upstream response details. */
