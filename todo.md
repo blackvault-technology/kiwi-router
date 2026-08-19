@@ -170,3 +170,8 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 - [x] Diagnose and fix production 500 responses for `admin.auditEvents` and `apiKeys.list`.
 - [x] Diagnose and fix the production 504 timeout for `/api/v1/chat/completions`.
 - [x] Add regression coverage for the repaired admin, API-key, and gateway paths and validate the production-shaped build.
+
+
+## 2026-08-19 standard-user coverage clarification
+
+- [x] Add explicit standard-user render/contract assertions covering API keys, models, credits/coupons/referrals, analytics, playground, and responsive layout hooks.

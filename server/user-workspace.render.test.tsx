@@ -24,7 +24,9 @@ describe("standard user workspace starter", () => {
     expect(html).toContain("Test gateway");
     for (const label of ["API keys", "Models", "Credits &amp; coupons", "Referrals", "Usage", "Playground"]) expect(html).toContain(label);
     for (const detail of ["Create and revoke access", "Browse enabled routes", "Top up or redeem", "Invite and claim", "Review gateway activity", "Test a completion"]) expect(html).toContain(detail);
-    expect(html).toContain("Redeem a coupon or top up credits");
+    for (const workflow of ["Create API key", "Redeem a coupon or top up credits, then", "Invite and claim", "Review gateway activity", "Test gateway"]) expect(html).toContain(workflow);
+    expect(html).toContain("sm:grid-cols-2");
+    expect(html).toContain("xl:grid-cols-3");
     expect(html).not.toContain("Founder Console");
   });
 
