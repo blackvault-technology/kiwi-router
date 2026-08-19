@@ -201,12 +201,12 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 
 - [x] Complete Google callback exchange, Neon identity linking, session cookie creation, and safe redirect to the website.
 - [x] Ensure auth session loads on page refresh and Google callback errors render actionable login feedback.
-- [ ] Add end-to-end-shaped Google auth/session regression coverage and validate the live production flow.
+- [x] Add end-to-end-shaped Google auth/session regression coverage and validate the live production flow.
 
 
 ## v0.1.2 major patch
 
-- [ ] Fix Google OAuth callback/session restoration so authenticated users land in the dashboard rather than the public landing page.
+- [x] Fix Google OAuth callback/session restoration so authenticated users land in the dashboard rather than the public landing page.
 - [x] Add v0.1.2 API performance and resilience improvements without changing the public API contract.
 - [x] Add regression coverage for Google session loading, authenticated redirect behavior, API resilience, and the v0.1.2 release surface.
 
@@ -237,7 +237,7 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 ## 2026-08-19 dual production failure repair
 
 - [x] Fix production `admin.auditEvents` HTTP 500 and validate the Neon query/serialization path.
-- [ ] Fix production `/api/v1/chat/completions` HTTP 502 after the published gateway failover patch and validate the live route.
+- [x] Fix production `/api/v1/chat/completions` HTTP 502 after the published gateway failover patch and validate the live route.
 - [x] Add combined regression coverage and rerun the full suite.
 
 ## 2026-08-19 deep endpoint reliability pass
