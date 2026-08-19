@@ -13,7 +13,7 @@ import { registerStripeWebhook } from "./stripeCredits";
 import { banIpAddress } from "./db";
 import { corsGuard, globalApiRateLimit, securityHeaders } from "./httpSecurity";
 
-export async function createApp(options: { developmentServer?: Server; serveStaticFiles?: boolean } = {}) {
+export async function createApp() {
   const app = express();
   app.set("trust proxy", 1);
   await ensureFounderAccount();
@@ -36,12 +36,5 @@ export async function createApp(options: { developmentServer?: Server; serveStat
   registerStorageProxy(app);
   registerGateway(app);
   app.use("/api/trpc", createExpressMiddleware({ router: appRouter, createContext }));
-  if (options.developmentServer) {
-    const { setupVite } = await import("./_core/vite");
-    await setupVite(app, options.developmentServer);
-  } else if (options.serveStaticFiles) {
-    const { serveStatic } = await import("./_core/vite");
-    serveStatic(app);
-  }
   return app;
 }

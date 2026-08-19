@@ -57,3 +57,4 @@
 - [ ] Push the bundled handler, explicit imports, and Vercel `includeFiles` configuration to GitHub for a fresh production deployment.
 - [ ] Confirm the fresh Vercel function logs no longer report `ERR_MODULE_NOT_FOUND` for `/var/task/server/vercelHandler`.
 - [ ] Confirm the live Vercel `/api/v1/health` endpoint returns HTTP 200 JSON from the API function.
+- [x] Exclude development-only Vite dependencies from the bundled Vercel serverless handler.
