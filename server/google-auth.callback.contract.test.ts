@@ -17,6 +17,7 @@ describe("Google OAuth callback contract", () => {
     expect(source).toContain("upsertGoogleIdentity");
     expect(source).toContain("startSession(res, user)");
     expect(source).toContain('eventType: "google_login_success"');
+    expect(source).toContain('res.redirect("/app")');
   });
 
   it("registers the callback behind the existing API security middleware", () => {

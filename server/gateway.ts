@@ -177,8 +177,8 @@ export function registerGateway(app: Express) {
     const owner = await getApiKeyOwner(apiKey);
     if (!owner) return respondError(res, 401, "Invalid or revoked API key", "invalid_api_key");
     const ipAddress = req.ip || getRequestIp(req.headers);
-    if (await isAccessBanned(owner.user.id, owner.user.email, ipAddress)) return respondError(res, 403, "Access is blocked", "access_banned");
-    const rate = await checkRateLimit(owner.user.id, ipAddress);
+    const [banned, rate] = await Promise.all([isAccessBanned(owner.user.id, owner.user.email, ipAddress), checkRateLimit(owner.user.id, ipAddress)]);
+    if (banned) return respondError(res, 403, "Access is blocked", "access_banned");
     if (!rate.allowed) return respondError(res, 429, "Rate limit exceeded", "rate_limit_exceeded");
     const available = await listModels(true);
     return res.json({ object: "list", data: available.map(({ model }) => ({ id: model.slug, object: "model", created: Math.floor(model.createdAt.getTime() / 1000), owned_by: "cloudhug" })) });
@@ -191,11 +191,11 @@ export function registerGateway(app: Express) {
     if (!owner) return respondError(res, 401, "Invalid or revoked API key", "invalid_api_key");
     const ipAddress = req.ip || getRequestIp(req.headers);
     const userAgentHash = req.header("user-agent") ? hashApiKey(req.header("user-agent")!) : undefined;
-    if (await isAccessBanned(owner.user.id, owner.user.email, ipAddress)) return respondError(res, 403, "Access is blocked", "access_banned");
     const parsed = completionSchema.safeParse(req.body);
     if (!parsed.success) return respondError(res, 400, "Invalid chat completion payload", "invalid_request_error");
     const body = parsed.data as { model: string; stream?: boolean; messages?: ChatMessage[]; max_tokens?: number; stream_options?: Record<string, unknown> };
-    const rate = await checkRateLimit(owner.user.id, ipAddress);
+    const [banned, rate] = await Promise.all([isAccessBanned(owner.user.id, owner.user.email, ipAddress), checkRateLimit(owner.user.id, ipAddress)]);
+    if (banned) return respondError(res, 403, "Access is blocked", "access_banned");
     if (!rate.allowed) return respondError(res, 429, "Rate limit exceeded", "rate_limit_exceeded");
     let route = await getGatewayRoute(body.model);
     if (!route) return respondError(res, 404, `Model '${body.model}' is unavailable`, "model_not_found");

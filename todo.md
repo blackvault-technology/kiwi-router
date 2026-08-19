@@ -195,3 +195,17 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 
 - [x] Audit Vercel production environment variable names and deployment visibility for Google OAuth, Neon, JWT, APP_URL, and gateway configuration.
 - [x] Align or document any missing Vercel environment values and validate live Google auth after redeployment.
+
+
+## 2026-08-19 Google auth full-flow completion
+
+- [ ] Complete Google callback exchange, Neon identity linking, session cookie creation, and safe redirect to the website.
+- [ ] Ensure auth session loads on page refresh and Google callback errors render actionable login feedback.
+- [ ] Add end-to-end-shaped Google auth/session regression coverage and validate the live production flow.
+
+
+## v0.1.2 major patch
+
+- [ ] Fix Google OAuth callback/session restoration so authenticated users land in the dashboard rather than the public landing page.
+- [x] Add v0.1.2 API performance and resilience improvements without changing the public API contract.
+- [x] Add regression coverage for Google session loading, authenticated redirect behavior, API resilience, and the v0.1.2 release surface.

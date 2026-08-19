@@ -87,7 +87,7 @@ export function registerGoogleAuth(app: Express) {
       if (!user || user.isDisabled) return res.redirect("/login?error=google_account");
       await startSession(res, user);
       await recordSecurityEvent({ eventType: "google_login_success", userId: user.id, ipAddress: req.ip, metadata: { googleSubject: profile.sub } });
-      return res.redirect("/");
+      return res.redirect("/app");
     } catch {
       return res.redirect("/login?error=google_failed");
     }

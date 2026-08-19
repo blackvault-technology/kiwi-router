@@ -6,7 +6,8 @@ const appSource = readFileSync(new URL("../client/src/App.tsx", import.meta.url)
 
 describe("dashboard resilience and referral UX", () => {
   it("guards public authentication screens from the session query loading state", () => {
-    expect(appSource).toContain("enabled: !isPublicRoute");
+    expect(appSource).toContain("enabled: !publicContentRoute");
+    expect(appSource).toContain("authEntryRoute");
     expect(dashboardSource).toContain('new URLSearchParams(window.location.search).get("ref")');
     expect(dashboardSource).toContain("referralCode: referralCode.trim() || undefined");
   });
