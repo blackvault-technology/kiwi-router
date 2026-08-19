@@ -8,9 +8,14 @@ describe("Vercel production routing", () => {
     const config = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
       outputDirectory?: string;
       rewrites?: Array<{ source: string; destination: string }>;
+      functions?: Record<string, { maxDuration?: number; includeFiles?: string }>;
     };
 
     expect(config.outputDirectory).toBe("dist");
+    expect(config.functions).toMatchObject({
+      "api/index.ts": { maxDuration: 60, includeFiles: "server/vercelHandler.js" },
+      "api/[...path].ts": { maxDuration: 60, includeFiles: "server/vercelHandler.js" },
+    });
     expect(config.rewrites).toEqual([
       { source: "/api/(.*)", destination: "/api/[...path]" },
       { source: "/(.*)", destination: "/index.html" },

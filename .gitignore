@@ -5,6 +5,7 @@
 # Build outputs
 dist/
 build/
+server/vercelHandler.js
 *.dist
 
 # Environment variables

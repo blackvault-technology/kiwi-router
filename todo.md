@@ -53,3 +53,7 @@
 - [ ] Confirm the live `/api/v1/health` endpoint returns a JSON response with HTTP 200.
 - [x] Move the shared Vercel handler implementation out of `api/` so each generated function bundles the handler directly.
 - [x] Remove the duplicated legacy `./index` import from the catch-all Vercel API entry point.
+- [x] Bundle the shared handler into a Vercel-included JavaScript artifact with explicit `.js` imports.
+- [ ] Push the bundled handler, explicit imports, and Vercel `includeFiles` configuration to GitHub for a fresh production deployment.
+- [ ] Confirm the fresh Vercel function logs no longer report `ERR_MODULE_NOT_FOUND` for `/var/task/server/vercelHandler`.
+- [ ] Confirm the live Vercel `/api/v1/health` endpoint returns HTTP 200 JSON from the API function.

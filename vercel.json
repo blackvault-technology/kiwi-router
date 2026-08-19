@@ -3,8 +3,8 @@
   "buildCommand": "pnpm build:vercel",
   "outputDirectory": "dist",
   "functions": {
-    "api/index.ts": { "maxDuration": 60 },
-    "api/[...path].ts": { "maxDuration": 60 }
+    "api/index.ts": { "maxDuration": 60, "includeFiles": "server/vercelHandler.js" },
+    "api/[...path].ts": { "maxDuration": 60, "includeFiles": "server/vercelHandler.js" }
   },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/[...path]" },
