@@ -1,28 +1,97 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { bigserial, boolean, date, index, integer, jsonb, numeric, pgEnum, pgTable, serial, text, timestamp, uniqueIndex, uuid, varchar } from "drizzle-orm/pg-core";
 
-/**
- * Core user table backing auth flow.
- * Extend this file with additional tables as your product grows.
- * Columns use camelCase to match both database fields and generated types.
- */
-export const users = mysqlTable("users", {
-  /**
-   * Surrogate primary key. Auto-incremented numeric value managed by the database.
-   * Use this for relations between tables.
-   */
-  id: int("id").autoincrement().primaryKey(),
-  /** Manus OAuth identifier (openId) returned from the OAuth callback. Unique per user. */
-  openId: varchar("openId", { length: 64 }).notNull().unique(),
-  name: text("name"),
-  email: varchar("email", { length: 320 }),
-  loginMethod: varchar("loginMethod", { length: 64 }),
-  role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-  lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
+export const userRole = pgEnum("user_role", ["user", "admin"]);
+export const requestStatus = pgEnum("request_status", ["success", "error"]);
+
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 100 }).notNull(),
+  email: varchar("email", { length: 320 }).notNull(),
+  passwordHash: text("password_hash").notNull(),
+  role: userRole("role").notNull().default("user"),
+  isDisabled: boolean("is_disabled").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [uniqueIndex("users_email_idx").on(table.email)]);
+
+export const sessions = pgTable("sessions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [index("sessions_user_idx").on(table.userId)]);
+
+export const apiKeys = pgTable("api_keys", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 80 }).notNull(),
+  keyPrefix: varchar("key_prefix", { length: 24 }).notNull(),
+  keyHash: varchar("key_hash", { length: 64 }).notNull(),
+  lastFour: varchar("last_four", { length: 4 }).notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [uniqueIndex("api_keys_hash_idx").on(table.keyHash), index("api_keys_user_idx").on(table.userId)]);
+
+export const providers = pgTable("providers", {
+  id: serial("id").primaryKey(),
+  slug: varchar("slug", { length: 50 }).notNull(),
+  displayName: varchar("display_name", { length: 100 }).notNull(),
+  baseUrl: text("base_url").notNull(),
+  encryptedApiKey: text("encrypted_api_key"),
+  isHealthy: boolean("is_healthy").notNull().default(false),
+  isEnabled: boolean("is_enabled").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [uniqueIndex("providers_slug_idx").on(table.slug)]);
+
+export const models = pgTable("models", {
+  id: serial("id").primaryKey(),
+  slug: varchar("slug", { length: 120 }).notNull(),
+  displayName: varchar("display_name", { length: 120 }).notNull(),
+  providerId: integer("provider_id").notNull().references(() => providers.id, { onDelete: "cascade" }),
+  upstreamId: varchar("upstream_id", { length: 160 }).notNull(),
+  contextWindow: integer("context_window").notNull().default(128000),
+  inputPrice: numeric("input_price", { precision: 12, scale: 6 }).notNull().default("0"),
+  outputPrice: numeric("output_price", { precision: 12, scale: 6 }).notNull().default("0"),
+  routingConfig: jsonb("routing_config").notNull().default({ protocol: "openai" }),
+  isEnabled: boolean("is_enabled").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [uniqueIndex("models_slug_idx").on(table.slug), index("models_provider_idx").on(table.providerId)]);
+
+export const requestLogs = pgTable("request_logs", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "set null" }),
+  apiKeyId: uuid("api_key_id").references(() => apiKeys.id, { onDelete: "set null" }),
+  modelSlug: varchar("model_slug", { length: 120 }).notNull(),
+  status: requestStatus("status").notNull(),
+  inputTokens: integer("input_tokens").notNull().default(0),
+  outputTokens: integer("output_tokens").notNull().default(0),
+  latencyMs: integer("latency_ms").notNull().default(0),
+  errorCode: varchar("error_code", { length: 80 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [index("request_logs_user_created_idx").on(table.userId, table.createdAt), index("request_logs_key_created_idx").on(table.apiKeyId, table.createdAt)]);
+
+export const usageDaily = pgTable("usage_daily", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  day: date("day").notNull(),
+  requests: integer("requests").notNull().default(0),
+  inputTokens: integer("input_tokens").notNull().default(0),
+  outputTokens: integer("output_tokens").notNull().default(0),
+  errorCount: integer("error_count").notNull().default(0),
+  totalLatencyMs: integer("total_latency_ms").notNull().default(0),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [uniqueIndex("usage_daily_user_day_idx").on(table.userId, table.day)]);
+
+export const rateLimitSettings = pgTable("rate_limit_settings", {
+  id: serial("id").primaryKey(),
+  requestsPerMinute: integer("requests_per_minute").notNull().default(20),
+  tokensPerMinute: integer("tokens_per_minute").notNull().default(10000),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export type User = typeof users.$inferSelect;
-export type InsertUser = typeof users.$inferInsert;
-
-// TODO: Add your tables here
+export type ApiKey = typeof apiKeys.$inferSelect;

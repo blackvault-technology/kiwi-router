@@ -1,5 +1,13 @@
 {
   "version": "7",
   "dialect": "mysql",
-  "entries": []
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1787115217651,
+      "tag": "0000_old_dracula",
+      "breakpoints": true
+    }
+  ]
 }

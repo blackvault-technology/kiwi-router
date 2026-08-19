@@ -1,35 +1,22 @@
+import ErrorBoundary from "./components/ErrorBoundary";
+import { AuthScreen, KiwiDashboard } from "./components/KiwiDashboard";
+import { ThemeProvider } from "./contexts/ThemeContext";
+import { trpc } from "./lib/trpc";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
-import ErrorBoundary from "./components/ErrorBoundary";
-import { ThemeProvider } from "./contexts/ThemeContext";
-import Home from "./pages/Home";
 
 function Router() {
-  // make sure to consider if you need authentication for certain routes
-  return (
-    <Switch>
-      <Route path={"/"} component={Home} />
-      <Route path={"/404"} component={NotFound} />
-      {/* Final fallback route */}
-      <Route component={NotFound} />
-    </Switch>
-  );
+  const auth = trpc.auth.me.useQuery(undefined, { retry: false });
+  const utils = trpc.useUtils();
+  if (auth.isLoading) return <div className="grid min-h-screen place-items-center bg-[#090a09]"><div className="size-6 animate-spin rounded-full border-2 border-zinc-700 border-t-[#8ee53f]" /></div>;
+  if (!auth.data) return <AuthScreen onAuthenticated={user => utils.auth.me.setData(undefined, user)} />;
+  return <KiwiDashboard user={auth.data} onLogout={() => { utils.auth.me.setData(undefined, null); utils.invalidate(); }} />;
 }
-
-// NOTE: About Theme
-// - First choose a default theme according to your design style (dark or light bg), than change color palette in index.css
-//   to keep consistent foreground/background color across components
-// - If you want to make theme switchable, pass `switchable` ThemeProvider and use `useTheme` hook
 
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider
-        defaultTheme="light"
-        // switchable
-      >
+      <ThemeProvider defaultTheme="dark">
         <TooltipProvider>
           <Toaster />
           <Router />
