@@ -183,3 +183,9 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 - [x] Add secure Google OAuth state, callback, identity linking, and account-creation flow without replacing Neon auth storage.
 - [x] Add a Google sign-in button, configuration guidance, and regression coverage for callback/state/linking behavior.
 - [x] Validate the Google OAuth migration and full auth regression suite; document the required Google Client ID, Client Secret, and redirect URI setup.
+
+
+## 2026-08-19 Google sign-in configuration failure
+
+- [ ] Fix deployed `/api/auth/google` returning `{"error":"Google sign-in is not configured"}` despite configured Google credentials.
+- [x] Add regression coverage for production-secret loading and configured Google OAuth redirect behavior.
