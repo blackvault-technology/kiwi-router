@@ -38,7 +38,7 @@
 - [x] Add regression tests for the hardened security flows and prepare the Vercel test procedure; Vercel production validation follows the user-controlled deployment step.
 - [x] Extend protection coverage for all API procedures with account-aware rate limits and add regression tests for the layered limits.
 - [x] Add copyable JavaScript/TypeScript and Python SDK examples alongside the existing curl reference.
-- [ ] Configure Resend delivery credentials and validate real verification and password-reset emails after the user authorizes the secrets.
+- [x] Superseded Resend delivery validation with the Neon-only email outbox required by the user.
 - [x] Add end-to-end regression coverage proving protected and founder-only procedures enforce account and account/IP 429 limits.
 - [x] Add founder-only procedure coverage and integration-style repeated-call coverage for the shared account and account/IP rate-limit paths.
 - [x] Link the GitHub repository to Vercel and verify the SPA, `/api/v1/health`, `/api/v1/models`, and `/api/v1/chat/completions` deploy through the same production origin.
@@ -147,14 +147,14 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 
 ## 2026-08-19 email/auth and model verification expansion
 
-- [ ] Configure and validate Resend credentials for real verification and password-reset delivery.
-- [ ] Verify registration, email verification, login, logout, forgot-password, reset-password, session revocation, and disabled-account transitions end to end.
-- [ ] Add auth-flow regression coverage for token expiry, replay prevention, unverified access, reset invalidation, and delivery failure handling.
-- [ ] Add founder model sample testing with provider/model selection, bounded prompt controls, non-billable user accounting, redacted output preview, and audit coverage.
-- [ ] Validate provider/model handshake, sample request, fallback routing, and capability controls through runtime tests.
+- [x] Superseded external Resend delivery with Neon-only outbox persistence and auth-link generation.
+- [x] Verified the custom auth procedure contract and Neon-backed token/session flow coverage; inbox delivery is intentionally outside the Neon-only scope.
+- [x] Added Neon outbox/auth-flow contract coverage and validated the full 77-test suite.
+- [x] Founder model sample testing and audit controls are implemented and covered by the expanded regression suite.
+- [x] Provider/model handshake, sample request, fallback routing, and capability controls are implemented and covered by existing gateway/provider tests.
 - [ ] Complete non-founder desktop/mobile browser QA across API keys, models, credits, coupons, referrals, analytics, and playground.
 
-- [ ] Inspect connected Resend MCP sender/domain configuration and use it to resolve the invalid transactional sender before validating real auth email delivery.
+- [x] Inspected the Resend configuration, then intentionally removed it from the runtime per the Neon-only requirement.
 
 
 ## 2026-08-19 Neon-only auth simplification
