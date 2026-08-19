@@ -38,4 +38,10 @@ describe("production API failure repairs", () => {
     expect(db).toContain("~ '^[0-9]+$'");
     expect(db).toContain("ELSE 100 END ASC");
   });
+
+  it("makes founder model-route creation idempotent for discovered duplicate routes", () => {
+    expect(db).toContain("onConflictDoUpdate");
+    expect(db).toContain("target: [models.slug, models.providerId, models.upstreamId]");
+    expect(db).toContain("Unable to save model route");
+  });
 });

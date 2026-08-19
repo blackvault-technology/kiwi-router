@@ -191,7 +191,13 @@ export async function getGatewayFallbackRoute(slug: string, providerId: number) 
 export type ModelRoutingConfig = { protocol: "openai" | "anthropic" | "gemini"; priority: number; fallbackProviderId?: number; capabilities: { streaming: boolean; vision: boolean; tools: boolean; jsonMode: boolean; reasoning: boolean }; headers?: Record<string, string> };
 
 export async function createModel(input: { slug: string; displayName: string; providerId: number; upstreamId: string; contextWindow: number; inputPrice: string; outputPrice: string; creditCostPer1kTokens: string; isEnabled: boolean; routingConfig?: ModelRoutingConfig }) {
-  return (await getDb().insert(models).values({ ...input, routingConfig: input.routingConfig ?? { protocol: "openai", priority: 100, capabilities: { streaming: true, vision: false, tools: false, jsonMode: false, reasoning: false } } }).returning())[0]!;
+  const routingConfig = input.routingConfig ?? { protocol: "openai" as const, priority: 100, capabilities: { streaming: true, vision: false, tools: false, jsonMode: false, reasoning: false } };
+  const row = (await getDb().insert(models).values({ ...input, routingConfig }).onConflictDoUpdate({
+    target: [models.slug, models.providerId, models.upstreamId],
+    set: { displayName: input.displayName, contextWindow: input.contextWindow, inputPrice: input.inputPrice, outputPrice: input.outputPrice, creditCostPer1kTokens: input.creditCostPer1kTokens, routingConfig, isEnabled: input.isEnabled, updatedAt: new Date() },
+  }).returning())[0];
+  if (!row) throw new Error("Unable to save model route");
+  return row;
 }
 
 export async function updateModel(id: number, input: { isEnabled?: boolean; displayName?: string; upstreamId?: string; creditCostPer1kTokens?: string; routingConfig?: ModelRoutingConfig }) {

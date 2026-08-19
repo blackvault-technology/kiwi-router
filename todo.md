@@ -253,3 +253,10 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 
 
 > User requested a deeper implementation pass: make the endpoint work reliably and complete the analysis, fix, tests, and production validation.
+
+## 2026-08-19 model insertion failure
+
+- [x] Trace the failed `models` insert for `kiwi/groq-openai-gpt-oss-120b` through schema, migrations, Neon constraints, and the founder create-model procedure.
+- [x] Fix model-route insertion and add defensive validation for provider/model payloads and routing configuration.
+- [x] Add regression coverage for valid model creation, duplicate-route handling, malformed input, and Neon schema compatibility.
+- [x] Run TypeScript and the complete regression suite, then save a checkpoint for publication.
