@@ -1,6 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 
 describe("Vercel serverless handler", () => {
+  it("re-exports the shared handler from the catch-all API route", async () => {
+    vi.resetModules();
+    vi.doMock("../server/app", () => ({ createApp: vi.fn() }));
+    const { default: rootHandler } = await import("../api/index");
+    const { default: catchAllHandler } = await import("../api/[...path]");
+
+    expect(catchAllHandler).toBe(rootHandler);
+  });
+
   it("returns a safe JSON 503 response if application initialization fails", async () => {
     vi.resetModules();
     vi.doMock("../server/app", () => ({ createApp: vi.fn().mockRejectedValue(new Error("missing configuration")) }));
