@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "referrals_device_idx" ON "referrals" USING btree ("device_hash");

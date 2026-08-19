@@ -7,7 +7,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Route, Switch, useLocation } from "wouter";
 import VerifyEmail from "./pages/VerifyEmail";
 import ResetPassword from "./pages/ResetPassword";
-import { AboutPage, DocsPage, LandingPage } from "./pages/PublicSite";
+import { AboutPage, DocsPage } from "./pages/PublicSite";
+import { LandingPage } from "./pages/LandingV2";
 
 function Router() {
   const [location] = useLocation();

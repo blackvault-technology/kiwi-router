@@ -1,4 +1,4 @@
-import { bigserial, boolean, date, index, integer, jsonb, numeric, pgEnum, pgTable, serial, text, timestamp, uniqueIndex, uuid, varchar } from "drizzle-orm/pg-core";
+import { bigint, bigserial, boolean, date, index, integer, jsonb, numeric, pgEnum, pgTable, serial, text, timestamp, uniqueIndex, uuid, varchar } from "drizzle-orm/pg-core";
 
 export const userRole = pgEnum("user_role", ["user", "admin", "founder"]);
 export const requestStatus = pgEnum("request_status", ["success", "error"]);
@@ -6,6 +6,7 @@ export const creditEntryType = pgEnum("credit_entry_type", ["grant", "airdrop", 
 export const creditBucket = pgEnum("credit_bucket", ["stipend", "purchased"]);
 export const banScope = pgEnum("ban_scope", ["user", "ip", "email_domain"]);
 export const authTokenPurpose = pgEnum("auth_token_purpose", ["email_verify", "password_reset"]);
+export const referralStatus = pgEnum("referral_status", ["pending", "activated", "rejected"]);
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -21,9 +22,10 @@ export const users = pgTable("users", {
   stipendCredits: numeric("stipend_credits", { precision: 14, scale: 3 }).notNull().default("0"),
   purchasedCredits: numeric("purchased_credits", { precision: 14, scale: 3 }).notNull().default("0"),
   stripeCustomerId: varchar("stripe_customer_id", { length: 255 }),
+  referralCode: varchar("referral_code", { length: 32 }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, table => [uniqueIndex("users_email_idx").on(table.email)]);
+}, table => [uniqueIndex("users_email_idx").on(table.email), uniqueIndex("users_referral_code_idx").on(table.referralCode)]);
 
 export const sessions = pgTable("sessions", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -122,6 +124,57 @@ export const creditLedger = pgTable("credit_ledger", {
   stripePaymentIntentId: varchar("stripe_payment_intent_id", { length: 255 }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, table => [index("credit_ledger_user_created_idx").on(table.userId, table.createdAt), index("credit_ledger_expiry_idx").on(table.expiresAt)]);
+
+export const couponCodes = pgTable("coupon_codes", {
+  id: serial("id").primaryKey(),
+  code: varchar("code", { length: 64 }).notNull(),
+  creditsAmount: numeric("credits_amount", { precision: 14, scale: 3 }).notNull(),
+  maxUses: integer("max_uses"),
+  usesCount: integer("uses_count").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [uniqueIndex("coupon_codes_code_idx").on(table.code), index("coupon_codes_active_expiry_idx").on(table.isActive, table.expiresAt)]);
+
+export const couponRedemptions = pgTable("coupon_redemptions", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  couponId: integer("coupon_id").notNull().references(() => couponCodes.id, { onDelete: "cascade" }),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  ipHash: varchar("ip_hash", { length: 64 }).notNull(),
+  ledgerEntryId: bigint("ledger_entry_id", { mode: "number" }).references(() => creditLedger.id, { onDelete: "set null" }),
+  redeemedAt: timestamp("redeemed_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [
+  uniqueIndex("coupon_redemptions_coupon_user_idx").on(table.couponId, table.userId),
+  uniqueIndex("coupon_redemptions_coupon_ip_idx").on(table.couponId, table.ipHash),
+  index("coupon_redemptions_user_created_idx").on(table.userId, table.redeemedAt),
+]);
+
+export const referrals = pgTable("referrals", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  referrerUserId: integer("referrer_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  referredUserId: integer("referred_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  referralCode: varchar("referral_code", { length: 32 }).notNull(),
+  status: referralStatus("status").notNull().default("pending"),
+  signupIpHash: varchar("signup_ip_hash", { length: 64 }).notNull(),
+  deviceHash: varchar("device_hash", { length: 64 }),
+  referrerRewardCredits: numeric("referrer_reward_credits", { precision: 14, scale: 3 }).notNull().default("0"),
+  referredRewardCredits: numeric("referred_reward_credits", { precision: 14, scale: 3 }).notNull().default("0"),
+  activatedAt: timestamp("activated_at", { withTimezone: true }),
+  referrerRewardClaimedAt: timestamp("referrer_reward_claimed_at", { withTimezone: true }),
+  referredRewardClaimedAt: timestamp("referred_reward_claimed_at", { withTimezone: true }),
+  referrerLedgerEntryId: bigint("referrer_ledger_entry_id", { mode: "number" }).references(() => creditLedger.id, { onDelete: "set null" }),
+  referredLedgerEntryId: bigint("referred_ledger_entry_id", { mode: "number" }).references(() => creditLedger.id, { onDelete: "set null" }),
+  rejectionReason: varchar("rejection_reason", { length: 160 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [
+  uniqueIndex("referrals_referred_user_idx").on(table.referredUserId),
+  uniqueIndex("referrals_signup_ip_idx").on(table.signupIpHash),
+  uniqueIndex("referrals_device_idx").on(table.deviceHash),
+  index("referrals_referrer_status_idx").on(table.referrerUserId, table.status),
+  index("referrals_referral_code_idx").on(table.referralCode),
+]);
 
 export const announcements = pgTable("announcements", {
   id: serial("id").primaryKey(),

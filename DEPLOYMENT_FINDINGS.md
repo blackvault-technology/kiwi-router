@@ -23,3 +23,7 @@ The bundled, Vite-free handler subsequently loaded successfully and returned a c
 Production recovery was verified after the required Vercel environment variables were configured. The live `/api/v1/health` endpoint returns HTTP `200` JSON with the expected security headers; unauthenticated `/api/v1/models` correctly returns HTTP `401`; `auth.me` returns HTTP `200`; and a founder sign-in for `indiasikhotechno@gmail.com` returns HTTP `200` with `emailVerified: true`. The production root no longer references the unset Umami script, removing the browser request that previously failed.
 
 The authenticated production `dashboard.overview` tRPC procedure still returns HTTP `500`, which produces a client-side rendering failure when the dashboard expects the returned usage series to be an array. Vercel’s live log view confirms repeated 500 responses for this exact procedure; the error must be removed at the data-query layer and the client must degrade safely when telemetry data is unavailable.
+
+The overview failure was resolved by normalizing Neon HTTP query results to their `rows` array before aggregating telemetry. After production deployment `dpl_3UvGW2SACT3tRqaCUrbax1bYCTqY`, the authenticated `dashboard.overview` procedure returns HTTP `200` JSON rather than the previous `analytics.reduce is not a function` error.
+
+The deployed authenticated Overview page was then opened in the browser. It renders the workspace metrics, credit packs, announcement, and navigation successfully, with no recurrence of the earlier client-side `map` rendering failure.

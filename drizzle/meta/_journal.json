@@ -1,13 +1,12 @@
 {
   "version": "7",
-  "dialect": "mysql",
+  "dialect": "postgresql",
   "entries": [
-    {
-      "idx": 0,
-      "version": "5",
-      "when": 1787115217651,
-      "tag": "0000_old_dracula",
-      "breakpoints": true
-    }
+    { "idx": 0, "version": "7", "when": 1787115217651, "tag": "0000_damp_black_bird", "breakpoints": true },
+    { "idx": 1, "version": "7", "when": 1787115217652, "tag": "0001_nosy_beyonder", "breakpoints": true },
+    { "idx": 2, "version": "7", "when": 1787115217653, "tag": "0002_demonic_black_bird", "breakpoints": true },
+    { "idx": 3, "version": "7", "when": 1787115217654, "tag": "0003_loud_hemingway", "breakpoints": true },
+    { "idx": 4, "version": "7", "when": 1787131150000, "tag": "0004_coupon_referral_foundation", "breakpoints": true },
+    { "idx": 5, "version": "7", "when": 1787131190000, "tag": "0005_ancient_red_wolf", "breakpoints": true }
   ]
 }

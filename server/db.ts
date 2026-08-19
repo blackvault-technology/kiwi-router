@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { and, desc, eq, gte, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/neon-http";
 import { neon } from "@neondatabase/serverless";
-import { accessBans, announcements, apiKeys, authTokens, creditLedger, loginRecords, models, providers, rateLimitBuckets, rateLimitSettings, requestLogs, securityEvents, sessions, usageDaily, users, type User } from "../drizzle/schema";
+import { accessBans, announcements, apiKeys, authTokens, couponCodes, couponRedemptions, creditLedger, loginRecords, models, providers, rateLimitBuckets, rateLimitSettings, referrals, requestLogs, securityEvents, sessions, usageDaily, users, type User } from "../drizzle/schema";
 import { hashApiKey } from "./auth";
 import { isFounderEmail, normalizeEmail } from "./founder";
 import { decryptSecret } from "./crypto";
@@ -34,9 +34,38 @@ export async function getUserById(id: number) {
   return (await getDb().select().from(users).where(eq(users.id, id)).limit(1))[0];
 }
 
+export function generateReferralCode() {
+  return `KR${randomBytes(9).toString("hex").toUpperCase()}`;
+}
+
 export async function createUser(input: { name: string; email: string; passwordHash: string }) {
   const email = normalizeEmail(input.email);
-  return (await getDb().insert(users).values({ ...input, email, role: isFounderEmail(email) ? "founder" : "user" }).returning())[0]!;
+  const db = getDb();
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const saved = await db.insert(users).values({ ...input, email, role: isFounderEmail(email) ? "founder" : "user", referralCode: generateReferralCode() })
+      .onConflictDoNothing({ target: users.referralCode }).returning();
+    if (saved[0]) return saved[0];
+  }
+  throw new Error("Unable to allocate a unique referral code");
+}
+
+export async function getOrCreateReferralCode(userId: number) {
+  const db = getDb();
+  const current = (await db.select({ referralCode: users.referralCode }).from(users).where(eq(users.id, userId)).limit(1))[0];
+  if (!current) throw new Error("User not found");
+  if (current.referralCode) return current.referralCode;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const referralCode = generateReferralCode();
+    try {
+      const saved = await db.update(users).set({ referralCode, updatedAt: new Date() }).where(and(eq(users.id, userId), isNull(users.referralCode))).returning({ referralCode: users.referralCode });
+      if (saved[0]?.referralCode) return saved[0].referralCode;
+      const existing = (await db.select({ referralCode: users.referralCode }).from(users).where(eq(users.id, userId)).limit(1))[0]?.referralCode;
+      if (existing) return existing;
+    } catch {
+      // A statistically unlikely unique-code collision is retried without exposing database details.
+    }
+  }
+  throw new Error("Unable to allocate a unique referral code");
 }
 
 export async function promoteFounderRecord() {
@@ -58,7 +87,7 @@ export async function deleteAllUserSessions(userId: number) {
 export async function getSessionWithUser(sessionId: string, userId: number) {
   const record = await getDb().select({
     sessionId: sessions.id, expiresAt: sessions.expiresAt, id: users.id, name: users.name, email: users.email,
-    passwordHash: users.passwordHash, role: users.role, isDisabled: users.isDisabled, emailVerifiedAt: users.emailVerifiedAt, emailVerificationSentAt: users.emailVerificationSentAt, failedLoginCount: users.failedLoginCount, lockedUntil: users.lockedUntil, stipendCredits: users.stipendCredits, purchasedCredits: users.purchasedCredits, stripeCustomerId: users.stripeCustomerId, createdAt: users.createdAt, updatedAt: users.updatedAt,
+    passwordHash: users.passwordHash, role: users.role, isDisabled: users.isDisabled, emailVerifiedAt: users.emailVerifiedAt, emailVerificationSentAt: users.emailVerificationSentAt, failedLoginCount: users.failedLoginCount, lockedUntil: users.lockedUntil, stipendCredits: users.stipendCredits, purchasedCredits: users.purchasedCredits, stripeCustomerId: users.stripeCustomerId, referralCode: users.referralCode, createdAt: users.createdAt, updatedAt: users.updatedAt,
   }).from(sessions).innerJoin(users, eq(sessions.userId, users.id))
     .where(and(eq(sessions.id, sessionId), eq(sessions.userId, userId))).limit(1);
   return record[0] as (User & { sessionId: string; expiresAt: Date }) | undefined;
@@ -338,4 +367,189 @@ export async function takeRateLimit(input: { scope: string; subject: string; max
 
 export async function recordSecurityEvent(input: { eventType: string; userId?: number; ipAddress?: string; metadata?: Record<string, unknown> }) {
   await getDb().insert(securityEvents).values({ userId: input.userId, eventType: input.eventType.slice(0, 80), ipAddress: input.ipAddress, metadata: input.metadata ?? {} });
+}
+
+export function normalizeCouponCode(code: string) {
+  return code.trim().toUpperCase();
+}
+
+async function getCreditBalanceSummary(userId: number) {
+  const user = (await getDb().select({ stipend: users.stipendCredits, purchased: users.purchasedCredits }).from(users).where(eq(users.id, userId)).limit(1))[0];
+  if (!user) throw new Error("User not found");
+  const stipend = Number(user.stipend);
+  const purchased = Number(user.purchased);
+  return { stipend, purchased, total: stipend + purchased };
+}
+
+export async function createCouponCode(input: { code: string; creditsAmount: number; maxUses?: number; expiresAt?: Date; createdBy: number }) {
+  const code = normalizeCouponCode(input.code);
+  if (!/^[A-Z0-9][A-Z0-9_-]{3,63}$/.test(code)) throw new Error("Coupon code must use 4–64 uppercase letters, numbers, hyphens, or underscores");
+  return (await getDb().insert(couponCodes).values({
+    code,
+    creditsAmount: input.creditsAmount.toFixed(3),
+    maxUses: input.maxUses,
+    expiresAt: input.expiresAt,
+    createdBy: input.createdBy,
+  }).returning())[0]!;
+}
+
+export async function listCouponCodes() {
+  const [coupons, redemptionCounts] = await Promise.all([
+    getDb().select().from(couponCodes).orderBy(desc(couponCodes.createdAt)),
+    getDb().execute(sql`SELECT coupon_id, COUNT(*)::int AS redemptions FROM coupon_redemptions GROUP BY coupon_id`),
+  ]);
+  const counts = new Map(queryRows<{ coupon_id: number; redemptions: number }>(redemptionCounts).map(row => [Number(row.coupon_id), Number(row.redemptions)]));
+  return coupons.map(coupon => ({ ...coupon, redemptions: counts.get(coupon.id) ?? 0 }));
+}
+
+export async function deactivateCouponCode(id: number) {
+  return (await getDb().update(couponCodes).set({ isActive: false, updatedAt: new Date() }).where(and(eq(couponCodes.id, id), eq(couponCodes.isActive, true))).returning({ id: couponCodes.id }))[0] !== undefined;
+}
+
+export async function redeemCouponCode(input: { userId: number; code: string; ipHash: string }) {
+  const code = normalizeCouponCode(input.code);
+  const coupon = (await getDb().select({ id: couponCodes.id }).from(couponCodes).where(eq(couponCodes.code, code)).limit(1))[0];
+  if (!coupon) return { redeemed: false as const, reason: "invalid" as const };
+  const result = await getDb().execute(sql`
+    WITH eligible_coupon AS (
+      SELECT id, credits_amount FROM coupon_codes
+      WHERE code = ${code} AND is_active = true AND (expires_at IS NULL OR expires_at > NOW())
+        AND (max_uses IS NULL OR uses_count < max_uses)
+      FOR UPDATE
+    ), redemption AS (
+      INSERT INTO coupon_redemptions (coupon_id, user_id, ip_hash)
+      SELECT id, ${input.userId}, ${input.ipHash} FROM eligible_coupon
+      ON CONFLICT DO NOTHING
+      RETURNING id, coupon_id
+    ), coupon_updated AS (
+      UPDATE coupon_codes c SET uses_count = c.uses_count + 1, updated_at = NOW()
+      FROM redemption r WHERE c.id = r.coupon_id
+      RETURNING c.id
+    ), credit_entry AS (
+      INSERT INTO credit_ledger (user_id, amount, entry_type, bucket, description, expires_at)
+      SELECT ${input.userId}, ec.credits_amount, 'airdrop'::credit_entry_type, 'stipend'::credit_bucket,
+        ${`Coupon ${code} redemption`}, NOW() + INTERVAL '30 days'
+      FROM eligible_coupon ec INNER JOIN redemption r ON r.coupon_id = ec.id
+      RETURNING id, user_id, amount
+    ), balance_updated AS (
+      UPDATE users u SET stipend_credits = u.stipend_credits + ce.amount, updated_at = NOW()
+      FROM credit_entry ce WHERE u.id = ce.user_id
+      RETURNING u.id
+    ), redemption_linked AS (
+      UPDATE coupon_redemptions cr SET ledger_entry_id = ce.id
+      FROM credit_entry ce WHERE cr.coupon_id = ${coupon.id} AND cr.user_id = ${input.userId} AND cr.ip_hash = ${input.ipHash}
+      RETURNING cr.id
+    )
+    SELECT ce.amount FROM credit_entry ce
+  `);
+  const row = queryRows<{ amount: string }>(result)[0];
+  if (!row) return { redeemed: false as const, reason: "ineligible" as const };
+  return { redeemed: true as const, amount: Number(row.amount), summary: await getCreditBalanceSummary(input.userId) };
+}
+
+export async function createPendingReferral(input: { referrerCode: string; referredUserId: number; signupIpHash: string; deviceHash?: string }) {
+  const referralCode = input.referrerCode.trim().toUpperCase();
+  const referrer = (await getDb().select({ id: users.id }).from(users).where(and(eq(users.referralCode, referralCode), eq(users.isDisabled, false), isNotNull(users.emailVerifiedAt))).limit(1))[0];
+  if (!referrer || referrer.id === input.referredUserId) return { created: false as const, reason: "invalid" as const };
+  const inserted = await getDb().insert(referrals).values({
+    referrerUserId: referrer.id,
+    referredUserId: input.referredUserId,
+    referralCode,
+    signupIpHash: input.signupIpHash,
+    deviceHash: input.deviceHash,
+    referrerRewardCredits: "25.000",
+    referredRewardCredits: "10.000",
+  }).onConflictDoNothing().returning({ id: referrals.id });
+  return inserted[0] ? { created: true as const } : { created: false as const, reason: "risk_control" as const };
+}
+
+export async function activateReferralForVerifiedUser(userId: number) {
+  const result = await getDb().execute(sql`
+    WITH eligible AS (
+      SELECT r.id, r.referred_reward_credits
+      FROM referrals r INNER JOIN users referrer ON referrer.id = r.referrer_user_id
+      WHERE r.referred_user_id = ${userId} AND r.status = 'pending'::referral_status
+        AND r.referrer_user_id <> ${userId} AND referrer.is_disabled = false AND referrer.email_verified_at IS NOT NULL
+      FOR UPDATE
+    ), activated AS (
+      UPDATE referrals r SET status = 'activated'::referral_status, activated_at = NOW()
+      FROM eligible e WHERE r.id = e.id
+      RETURNING r.id, r.referred_user_id, r.referred_reward_credits
+    ), credit_entry AS (
+      INSERT INTO credit_ledger (user_id, amount, entry_type, bucket, description, expires_at)
+      SELECT referred_user_id, referred_reward_credits, 'airdrop'::credit_entry_type, 'stipend'::credit_bucket,
+        'Referral activation reward', NOW() + INTERVAL '30 days'
+      FROM activated
+      RETURNING id, user_id, amount
+    ), balance_updated AS (
+      UPDATE users u SET stipend_credits = u.stipend_credits + ce.amount, updated_at = NOW()
+      FROM credit_entry ce WHERE u.id = ce.user_id
+      RETURNING u.id
+    ), referral_linked AS (
+      UPDATE referrals r SET referred_reward_claimed_at = NOW(), referred_ledger_entry_id = ce.id
+      FROM activated a INNER JOIN credit_entry ce ON ce.user_id = a.referred_user_id
+      WHERE r.id = a.id
+      RETURNING r.id
+    )
+    SELECT ce.amount FROM credit_entry ce
+  `);
+  const row = queryRows<{ amount: string }>(result)[0];
+  return row ? { activated: true as const, amount: Number(row.amount) } : { activated: false as const };
+}
+
+export async function claimReferralRewards(userId: number) {
+  const result = await getDb().execute(sql`
+    WITH eligible AS (
+      SELECT id, referrer_reward_credits FROM referrals
+      WHERE referrer_user_id = ${userId} AND status = 'activated'::referral_status AND referrer_reward_claimed_at IS NULL
+      FOR UPDATE
+    ), credit_entry AS (
+      INSERT INTO credit_ledger (user_id, amount, entry_type, bucket, description, expires_at)
+      SELECT ${userId}, SUM(referrer_reward_credits), 'airdrop'::credit_entry_type, 'stipend'::credit_bucket,
+        'Referral reward claim', NOW() + INTERVAL '30 days'
+      FROM eligible HAVING COUNT(*) > 0
+      RETURNING id, user_id, amount
+    ), balance_updated AS (
+      UPDATE users u SET stipend_credits = u.stipend_credits + ce.amount, updated_at = NOW()
+      FROM credit_entry ce WHERE u.id = ce.user_id
+      RETURNING u.id
+    ), referrals_claimed AS (
+      UPDATE referrals r SET referrer_reward_claimed_at = NOW(), referrer_ledger_entry_id = ce.id
+      FROM eligible e CROSS JOIN credit_entry ce WHERE r.id = e.id
+      RETURNING r.id
+    )
+    SELECT ce.amount, (SELECT COUNT(*)::int FROM referrals_claimed) AS claims FROM credit_entry ce
+  `);
+  const row = queryRows<{ amount: string; claims: number }>(result)[0];
+  return row ? { claimed: true as const, amount: Number(row.amount), referrals: Number(row.claims), summary: await getCreditBalanceSummary(userId) } : { claimed: false as const, amount: 0, referrals: 0, summary: await getCreditBalanceSummary(userId) };
+}
+
+export async function getReferralStats(userId: number) {
+  const referralCode = await getOrCreateReferralCode(userId);
+  const result = await getDb().execute(sql`
+    SELECT
+      COUNT(*)::int AS total,
+      COUNT(*) FILTER (WHERE status = 'pending'::referral_status)::int AS pending,
+      COUNT(*) FILTER (WHERE status = 'activated'::referral_status)::int AS activated,
+      COUNT(*) FILTER (WHERE status = 'activated'::referral_status AND referrer_reward_claimed_at IS NULL)::int AS claimable,
+      COALESCE(SUM(referrer_reward_credits) FILTER (WHERE status = 'activated'::referral_status AND referrer_reward_claimed_at IS NULL), 0)::numeric AS claimable_credits,
+      COALESCE(SUM(referrer_reward_credits) FILTER (WHERE referrer_reward_claimed_at IS NOT NULL), 0)::numeric AS claimed_credits
+    FROM referrals WHERE referrer_user_id = ${userId}
+  `);
+  const row = queryRows<{ total: number; pending: number; activated: number; claimable: number; claimable_credits: string; claimed_credits: string }>(result)[0] ?? { total: 0, pending: 0, activated: 0, claimable: 0, claimable_credits: "0", claimed_credits: "0" };
+  return { referralCode, total: Number(row.total), pending: Number(row.pending), activated: Number(row.activated), claimable: Number(row.claimable), claimableCredits: Number(row.claimable_credits), claimedCredits: Number(row.claimed_credits) };
+}
+
+export async function getReferralProgramMetrics() {
+  const result = await getDb().execute(sql`
+    SELECT
+      COUNT(*)::int AS total,
+      COUNT(*) FILTER (WHERE status = 'pending'::referral_status)::int AS pending,
+      COUNT(*) FILTER (WHERE status = 'activated'::referral_status)::int AS activated,
+      COUNT(*) FILTER (WHERE status = 'rejected'::referral_status)::int AS rejected,
+      COALESCE(SUM(referrer_reward_credits) FILTER (WHERE referrer_reward_claimed_at IS NOT NULL), 0)::numeric AS rewards_claimed
+    FROM referrals
+  `);
+  const row = queryRows<{ total: number; pending: number; activated: number; rejected: number; rewards_claimed: string }>(result)[0] ?? { total: 0, pending: 0, activated: 0, rejected: 0, rewards_claimed: "0" };
+  return { total: Number(row.total), pending: Number(row.pending), activated: Number(row.activated), rejected: Number(row.rejected), rewardsClaimed: Number(row.rewards_claimed) };
 }

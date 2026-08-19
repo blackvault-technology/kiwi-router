@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "referrals_signup_ip_idx" ON "referrals" USING btree ("signup_ip_hash");
