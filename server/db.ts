@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { and, desc, eq, gte, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/neon-http";
 import { neon } from "@neondatabase/serverless";
-import { accessBans, announcements, apiKeys, authTokens, couponCodes, couponRedemptions, creditLedger, loginRecords, models, providers, rateLimitBuckets, rateLimitSettings, referrals, requestLogs, securityEvents, sessions, usageDaily, users, type User } from "../drizzle/schema";
+import { accessBans, announcements, apiKeys, apiKeyProviderAccess, authTokens, couponCodes, couponRedemptions, creditLedger, loginRecords, models, providerCredentials, providerHealthChecks, providers, rateLimitBuckets, rateLimitSettings, referrals, requestLogs, securityEvents, sessions, usageDaily, users, type User } from "../drizzle/schema";
 import { hashApiKey } from "./auth";
 import { isFounderEmail, normalizeEmail } from "./founder";
 import { decryptSecret } from "./crypto";
@@ -148,7 +148,7 @@ export async function getGatewayRoute(slug: string) {
     .where(and(eq(models.slug, slug), eq(models.isEnabled, true), eq(providers.isEnabled, true))).limit(1))[0];
 }
 
-export async function createModel(input: { slug: string; displayName: string; providerId: number; upstreamId: string; contextWindow: number; inputPrice: string; outputPrice: string; isEnabled: boolean }) {
+export async function createModel(input: { slug: string; displayName: string; providerId: number; upstreamId: string; contextWindow: number; inputPrice: string; outputPrice: string; creditCostPer1kTokens: string; isEnabled: boolean }) {
   return (await getDb().insert(models).values({ ...input, routingConfig: { protocol: "openai" } }).returning())[0]!;
 }
 
@@ -157,7 +157,66 @@ export async function updateModel(id: number, input: { isEnabled?: boolean; disp
 }
 
 export async function listProviders() {
-  return getDb().select({ id: providers.id, slug: providers.slug, displayName: providers.displayName, baseUrl: providers.baseUrl, isHealthy: providers.isHealthy, isEnabled: providers.isEnabled, isConfigured: sql<boolean>`${providers.encryptedApiKey} IS NOT NULL` }).from(providers).orderBy(providers.displayName);
+  return getDb().select({ id: providers.id, slug: providers.slug, displayName: providers.displayName, baseUrl: providers.baseUrl, isHealthy: providers.isHealthy, isEnabled: providers.isEnabled, isConfigured: sql<boolean>`(${providers.encryptedApiKey} IS NOT NULL OR EXISTS (SELECT 1 FROM provider_credentials pc WHERE pc.provider_id = ${providers.id} AND pc.is_active = true))` }).from(providers).orderBy(providers.displayName);
+}
+
+async function resolveProviderCredential(providerId: number) {
+  const profile = (await getDb().select({ encryptedApiKey: providerCredentials.encryptedApiKey, id: providerCredentials.id }).from(providerCredentials).where(and(eq(providerCredentials.providerId, providerId), eq(providerCredentials.isActive, true))).orderBy(desc(providerCredentials.updatedAt)).limit(1))[0];
+  if (profile) return profile;
+  const legacy = (await getDb().select({ encryptedApiKey: providers.encryptedApiKey }).from(providers).where(eq(providers.id, providerId)).limit(1))[0];
+  return legacy?.encryptedApiKey ? { encryptedApiKey: legacy.encryptedApiKey, id: null } : undefined;
+}
+
+export async function getProviderRuntimeCredential(providerId: number) {
+  const credential = await resolveProviderCredential(providerId);
+  return credential ? decryptSecret(credential.encryptedApiKey) : undefined;
+}
+
+export async function listProviderCredentials(providerId: number) {
+  return getDb().select({ id: providerCredentials.id, providerId: providerCredentials.providerId, name: providerCredentials.name, keyHint: providerCredentials.keyHint, isActive: providerCredentials.isActive, lastTestedAt: providerCredentials.lastTestedAt, lastTestOk: providerCredentials.lastTestOk, lastTestLatencyMs: providerCredentials.lastTestLatencyMs, lastSuccessAt: providerCredentials.lastSuccessAt, createdAt: providerCredentials.createdAt, updatedAt: providerCredentials.updatedAt }).from(providerCredentials).where(eq(providerCredentials.providerId, providerId)).orderBy(desc(providerCredentials.updatedAt));
+}
+
+export async function saveProviderCredential(input: { providerId: number; name: string; encryptedApiKey: string; keyHint: string }) {
+  return (await getDb().insert(providerCredentials).values(input).returning({ id: providerCredentials.id, providerId: providerCredentials.providerId, name: providerCredentials.name, keyHint: providerCredentials.keyHint, isActive: providerCredentials.isActive, createdAt: providerCredentials.createdAt }))[0]!;
+}
+
+export async function setProviderCredentialActive(id: number, isActive: boolean) {
+  return (await getDb().update(providerCredentials).set({ isActive, updatedAt: new Date() }).where(eq(providerCredentials.id, id)).returning({ id: providerCredentials.id, providerId: providerCredentials.providerId, isActive: providerCredentials.isActive }))[0];
+}
+
+export async function testProviderCredential(credentialId: number) {
+  const row = (await getDb().select({ credential: providerCredentials, provider: providers }).from(providerCredentials).innerJoin(providers, eq(providerCredentials.providerId, providers.id)).where(eq(providerCredentials.id, credentialId)).limit(1))[0];
+  if (!row) throw new Error("Provider credential not found");
+  const startedAt = Date.now();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8_000);
+  try {
+    const response = await fetch(`${row.provider.baseUrl.replace(/\/$/, "")}/models`, { headers: row.provider.slug === "anthropic" ? { "x-api-key": decryptSecret(row.credential.encryptedApiKey), "anthropic-version": "2023-06-01" } : { Authorization: `Bearer ${decryptSecret(row.credential.encryptedApiKey)}` }, signal: controller.signal });
+    const result = { ok: response.ok, statusCode: response.status, latencyMs: Date.now() - startedAt, detail: response.ok ? "Credential handshake succeeded" : "Provider rejected this credential" };
+    await getDb().update(providerCredentials).set({ lastTestedAt: new Date(), lastTestOk: result.ok, lastTestLatencyMs: result.latencyMs, lastSuccessAt: result.ok ? new Date() : undefined, updatedAt: new Date() }).where(eq(providerCredentials.id, credentialId));
+    await getDb().insert(providerHealthChecks).values({ providerId: row.provider.id, credentialId, ok: result.ok, statusCode: result.statusCode, latencyMs: result.latencyMs, detail: result.detail });
+    return result;
+  } catch {
+    const result = { ok: false, statusCode: null, latencyMs: Date.now() - startedAt, detail: "Credential handshake did not complete" };
+    await getDb().update(providerCredentials).set({ lastTestedAt: new Date(), lastTestOk: false, lastTestLatencyMs: result.latencyMs, updatedAt: new Date() }).where(eq(providerCredentials.id, credentialId));
+    await getDb().insert(providerHealthChecks).values({ providerId: row.provider.id, credentialId, ok: false, statusCode: null, latencyMs: result.latencyMs, detail: result.detail });
+    return result;
+  } finally { clearTimeout(timeout); }
+}
+
+export async function listProviderHealth(providerId: number) {
+  return getDb().select({ id: providerHealthChecks.id, providerId: providerHealthChecks.providerId, credentialId: providerHealthChecks.credentialId, ok: providerHealthChecks.ok, statusCode: providerHealthChecks.statusCode, latencyMs: providerHealthChecks.latencyMs, detail: providerHealthChecks.detail, createdAt: providerHealthChecks.createdAt }).from(providerHealthChecks).where(eq(providerHealthChecks.providerId, providerId)).orderBy(desc(providerHealthChecks.createdAt)).limit(100);
+}
+
+export async function listAdminApiKeys(providerId?: number) {
+  const rows = await getDb().select({ id: apiKeys.id, userId: apiKeys.userId, userEmail: users.email, userName: users.name, name: apiKeys.name, keyPrefix: apiKeys.keyPrefix, lastFour: apiKeys.lastFour, isActive: apiKeys.isActive, lastUsedAt: apiKeys.lastUsedAt, revokedAt: apiKeys.revokedAt, accessIsEnabled: apiKeyProviderAccess.isEnabled, createdAt: apiKeys.createdAt }).from(apiKeys).innerJoin(users, eq(apiKeys.userId, users.id)).leftJoin(apiKeyProviderAccess, eq(apiKeys.id, apiKeyProviderAccess.apiKeyId)).where(providerId ? eq(apiKeyProviderAccess.providerId, providerId) : undefined).orderBy(desc(apiKeys.createdAt)).limit(500);
+  return rows;
+}
+
+export async function setApiKeyProviderAccess(input: { apiKeyId: string; providerId: number; isEnabled: boolean }) {
+  const existing = (await getDb().select({ id: apiKeyProviderAccess.id }).from(apiKeyProviderAccess).where(and(eq(apiKeyProviderAccess.apiKeyId, input.apiKeyId), eq(apiKeyProviderAccess.providerId, input.providerId))).limit(1))[0];
+  if (existing) return (await getDb().update(apiKeyProviderAccess).set({ isEnabled: input.isEnabled, updatedAt: new Date() }).where(eq(apiKeyProviderAccess.id, existing.id)).returning())[0];
+  return (await getDb().insert(apiKeyProviderAccess).values(input).returning())[0];
 }
 
 export async function saveProvider(input: { slug: string; displayName: string; baseUrl: string; encryptedApiKey?: string; isEnabled: boolean }) {
@@ -310,14 +369,15 @@ export async function syncProviderModels(providerId: number) {
   const provider = (await getDb().select().from(providers).where(eq(providers.id, providerId)).limit(1))[0];
   if (!provider) throw new Error("Provider not found");
   if (provider.slug === "anthropic" || provider.slug === "gemini") return { discovered: 0, mode: "manual" as const, ok: true, statusCode: null, detail: "This provider uses manual model routes" };
-  if (!provider.encryptedApiKey) return { discovered: 0, mode: "automatic" as const, ok: false, statusCode: null, detail: "Configure an upstream provider key before discovery" };
+  const activeCredential = await resolveProviderCredential(providerId);
+  if (!activeCredential) return { discovered: 0, mode: "automatic" as const, ok: false, statusCode: null, detail: "Configure an upstream provider key before discovery" };
 
   const startedAt = Date.now();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8_000);
   try {
     const response = await fetch(`${provider.baseUrl.replace(/\/$/, "")}/models`, {
-      headers: { Authorization: `Bearer ${decryptSecret(provider.encryptedApiKey)}` },
+      headers: { Authorization: `Bearer ${decryptSecret(activeCredential.encryptedApiKey)}` },
       signal: controller.signal,
     });
     if (!response.ok) {
@@ -345,7 +405,8 @@ export async function syncProviderModels(providerId: number) {
 export async function testProviderConnection(providerId: number) {
   const provider = (await getDb().select().from(providers).where(eq(providers.id, providerId)).limit(1))[0];
   if (!provider) throw new Error("Provider not found");
-  if (!provider.encryptedApiKey) return { ok: false, latencyMs: 0, statusCode: null, detail: "No encrypted credential is configured" };
+  const activeCredential = await resolveProviderCredential(providerId);
+  if (!activeCredential) return { ok: false, latencyMs: 0, statusCode: null, detail: "No encrypted credential is configured" };
   const startedAt = Date.now();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8_000);
@@ -353,8 +414,8 @@ export async function testProviderConnection(providerId: number) {
     const root = provider.baseUrl.replace(/\/$/, "");
     const response = await fetch(`${root}/models`, {
       headers: provider.slug === "anthropic"
-        ? { "x-api-key": decryptSecret(provider.encryptedApiKey), "anthropic-version": "2023-06-01" }
-        : { Authorization: `Bearer ${decryptSecret(provider.encryptedApiKey)}` },
+        ? { "x-api-key": decryptSecret(activeCredential.encryptedApiKey), "anthropic-version": "2023-06-01" }
+        : { Authorization: `Bearer ${decryptSecret(activeCredential.encryptedApiKey)}` },
       signal: controller.signal,
     });
     const latencyMs = Date.now() - startedAt;

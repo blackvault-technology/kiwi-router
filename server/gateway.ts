@@ -1,7 +1,7 @@
 import { Readable, Transform } from "node:stream";
 import type { Express, Request, Response } from "express";
 import { decryptSecret } from "./crypto";
-import { checkRateLimit, getApiKeyOwner, getGatewayRoute, getRateLimitSettings, isAccessBanned, listModels, listProviders, logRequest } from "./db";
+import { checkRateLimit, getApiKeyOwner, getGatewayRoute, getProviderRuntimeCredential, getRateLimitSettings, isAccessBanned, listModels, listProviders, logRequest } from "./db";
 import { canSpendCredits, spendCredits } from "./credits";
 import { getRequestIp } from "./founder";
 import { hashApiKey } from "./auth";
@@ -201,7 +201,8 @@ export function registerGateway(app: Express) {
     if (!route) return respondError(res, 404, `Model '${body.model}' is unavailable`, "model_not_found");
     const creditCheck = await canSpendCredits(owner.user, route.model.slug, body.max_tokens ?? 1024);
     if (!creditCheck.allowed) return respondError(res, 402, `Insufficient Kiwi Credits. ${creditCheck.required} credits are required; your balance is ${creditCheck.balance}.`, "insufficient_credits");
-    if (!route.provider.encryptedApiKey) return respondError(res, 503, `The ${route.provider.displayName} provider is not configured`, "provider_not_configured");
+    const runtimeCredential = await getProviderRuntimeCredential(route.provider.id);
+    if (!runtimeCredential) return respondError(res, 503, `The ${route.provider.displayName} provider is not configured`, "provider_not_configured");
 
     try {
       const isAnthropic = route.provider.slug === "anthropic";
@@ -211,8 +212,8 @@ export function registerGateway(app: Express) {
       const upstream = await fetch(`${baseUrl.toString().replace(/\/$/, "")}${isAnthropic ? "/messages" : "/chat/completions"}`, {
         method: "POST",
         headers: isAnthropic
-          ? { "Content-Type": "application/json", "x-api-key": decryptSecret(route.provider.encryptedApiKey), "anthropic-version": "2023-06-01" }
-          : { "Content-Type": "application/json", Authorization: `Bearer ${decryptSecret(route.provider.encryptedApiKey)}` },
+          ? { "Content-Type": "application/json", "x-api-key": runtimeCredential, "anthropic-version": "2023-06-01" }
+          : { "Content-Type": "application/json", Authorization: `Bearer ${runtimeCredential}` },
         body: JSON.stringify(isAnthropic ? anthopicPayload(body, route.model.upstreamId) : { ...body, model: route.model.upstreamId, ...(body.stream ? { stream_options: { ...body.stream_options, include_usage: true } } : {}) }),
         signal: controller.signal,
       });

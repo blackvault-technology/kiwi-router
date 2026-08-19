@@ -59,6 +59,41 @@ export const providers = pgTable("providers", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, table => [uniqueIndex("providers_slug_idx").on(table.slug)]);
 
+export const providerCredentials = pgTable("provider_credentials", {
+  id: serial("id").primaryKey(),
+  providerId: integer("provider_id").notNull().references(() => providers.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 80 }).notNull(),
+  encryptedApiKey: text("encrypted_api_key").notNull(),
+  keyHint: varchar("key_hint", { length: 16 }).notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  lastTestedAt: timestamp("last_tested_at", { withTimezone: true }),
+  lastTestOk: boolean("last_test_ok"),
+  lastTestLatencyMs: integer("last_test_latency_ms"),
+  lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [uniqueIndex("provider_credentials_provider_name_idx").on(table.providerId, table.name), index("provider_credentials_provider_idx").on(table.providerId)]);
+
+export const providerHealthChecks = pgTable("provider_health_checks", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  providerId: integer("provider_id").notNull().references(() => providers.id, { onDelete: "cascade" }),
+  credentialId: integer("credential_id").references(() => providerCredentials.id, { onDelete: "set null" }),
+  ok: boolean("ok").notNull(),
+  statusCode: integer("status_code"),
+  latencyMs: integer("latency_ms").notNull().default(0),
+  detail: varchar("detail", { length: 160 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [index("provider_health_checks_provider_created_idx").on(table.providerId, table.createdAt)]);
+
+export const apiKeyProviderAccess = pgTable("api_key_provider_access", {
+  id: serial("id").primaryKey(),
+  apiKeyId: uuid("api_key_id").notNull().references(() => apiKeys.id, { onDelete: "cascade" }),
+  providerId: integer("provider_id").notNull().references(() => providers.id, { onDelete: "cascade" }),
+  isEnabled: boolean("is_enabled").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [uniqueIndex("api_key_provider_access_key_provider_idx").on(table.apiKeyId, table.providerId), index("api_key_provider_access_provider_idx").on(table.providerId)]);
+
 export const models = pgTable("models", {
   id: serial("id").primaryKey(),
   slug: varchar("slug", { length: 120 }).notNull(),

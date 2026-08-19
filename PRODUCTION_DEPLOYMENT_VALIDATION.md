@@ -29,3 +29,9 @@ The latest checkpoint `3d47a9cccd288bf5481ecbe68ca7f5fd772f1c2b` is active as Ve
 ## 2026-08-19 Founder control-center release
 
 The founder control-center checkpoint `cc3cd3371bf36a3e9c824e262b96170b58fd65b2` deployed as Vercel production deployment `dpl_AwynMHqz2tav9zzgxdKoCnZHnovt` with state **READY**. A fresh canonical status request at 11:50 UTC returned the expected operational Neon database and gateway signals. The enabled model catalog and provider configuration remain correctly reported as degraded until the founder connects provider credentials and enables reviewed model routes through the new console.
+
+## 2026-08-19 Provider-sync hardening release
+
+Checkpoint `48a700c5afd54fda3ed6a8e46c2b6439a270daf0` deployed as Vercel production deployment `dpl_6XTKDibZ1QcLQ3mk4rMx642yMKke` with state **READY** and alias `kiwi-router.vercel.app`. The live `/status` page loaded successfully. The cache-disabled `/api/status` endpoint returned a fresh JSON snapshot with operational Neon database, gateway, and provider configuration components; the model catalog correctly reported degraded with `0 enabled routes`. No credentials, provider URLs, account data, or raw upstream error details were present.
+
+The founder-only sync mutation is covered locally by `server/provider-sync.contract.test.ts` and the full suite passes 64 tests. The exact interactive founder-session sync action remains a manual QA step because it requires the founder's authenticated browser session.

@@ -119,3 +119,27 @@
 ## 2026-08-19 sync failure
 
 The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` returning HTTP 500 in production. Investigation is required before any provider synchronization is retried.
+
+## 2026-08-19 deeper founder console expansion
+
+- [x] Add provider-scoped credential profiles with masked metadata, rotation, validation, and safe revocation.
+- [x] Add provider connection health history with latency, status, and last-success timestamps.
+- [ ] Add provider request-header and protocol configuration for OpenAI-compatible, Anthropic, and Gemini adapters.
+- [ ] Add automatic model catalog fetching with preview, deduplication, and disabled-by-default review state.
+- [x] Add manual model-entry workflow with context window, pricing, and route validation; capability metadata remains a follow-up.
+- [ ] Add bulk model enable, disable, archive, and restore-safe review actions.
+- [ ] Add model capability metadata for streaming, vision, tools, JSON mode, and reasoning.
+- [ ] Add model route priority, fallback order, and provider failover controls.
+- [x] Add per-model credit pricing and activation-time pricing controls; cost-estimate preview remains a follow-up.
+- [ ] Add provider/model test playground with non-billable handshake and sample request controls.
+- [x] Add API-key inventory scoped by user and provider with masked key identity and last-used data.
+- [ ] Add API-key revoke-all, rotate, expire, and emergency quarantine actions with confirmation.
+- [ ] Add user search, filtering, pagination, verification state, credit balance, and risk indicators.
+- [ ] Add user session inventory with revoke-all-sessions and suspicious-login review.
+- [ ] Add user API usage drill-down by model, provider, route, status, latency, and token totals.
+- [ ] Add user credit ledger inspection, correction workflow, grant/revoke controls, and immutable audit entries.
+- [ ] Add rate-limit policy presets by user, IP, API key, provider, and model.
+- [ ] Add gateway request log search with safe metadata filters and exportable redacted diagnostics.
+- [ ] Add audit-log explorer with event filters, actor, target, date range, and JSON-safe detail view.
+- [ ] Add admin dashboard overview cards for provider uptime, route coverage, model health, credits, and security events.
+- [ ] Add admin-console regression, responsive visual QA, and end-to-end founder mutation coverage for the expansion.
