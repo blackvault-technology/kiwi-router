@@ -58,3 +58,9 @@
 - [ ] Confirm the fresh Vercel function logs no longer report `ERR_MODULE_NOT_FOUND` for `/var/task/server/vercelHandler`.
 - [ ] Confirm the live Vercel `/api/v1/health` endpoint returns HTTP 200 JSON from the API function.
 - [x] Exclude development-only Vite dependencies from the bundled Vercel serverless handler.
+- [ ] Configure the required Neon and application secrets in the Vercel production project, then redeploy the API.
+- [ ] Restore live tRPC authentication responses by resolving the Vercel API initialization configuration blocker.
+- [x] Disable or correctly configure the failing production Umami analytics request.
+- [x] Ensure generated Vercel handler artifacts cannot interfere with the serverless handler test mocks.
+- [ ] Push the Umami script removal to GitHub and wait for a fresh Vercel production deployment.
+- [ ] Confirm the deployed HTML no longer includes an Umami script and the browser no longer requests `/umami`.

@@ -10,7 +10,7 @@
     "start": "NODE_ENV=production node server-build/index.js",
     "check": "tsc --noEmit",
     "format": "prettier --write .",
-    "test": "vitest run",
+    "test": "rm -f server/vercelHandler.js && vitest run",
     "db:push": "drizzle-kit generate && drizzle-kit migrate"
   },
   "dependencies": {
