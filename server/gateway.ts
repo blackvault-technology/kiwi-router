@@ -1,7 +1,7 @@
 import { Readable, Transform } from "node:stream";
 import type { Express, Request, Response } from "express";
 import { decryptSecret } from "./crypto";
-import { checkRateLimit, getApiKeyOwner, getGatewayRoute, getProviderRuntimeCredential, getRateLimitSettings, isAccessBanned, listModels, listProviders, logRequest } from "./db";
+import { checkRateLimit, getApiKeyOwner, getGatewayFallbackRoute, getGatewayRoute, getProviderRuntimeCredential, getRateLimitSettings, isAccessBanned, listModels, listProviders, logRequest } from "./db";
 import { canSpendCredits, spendCredits } from "./credits";
 import { getRequestIp } from "./founder";
 import { hashApiKey } from "./auth";
@@ -197,8 +197,13 @@ export function registerGateway(app: Express) {
     const body = parsed.data as { model: string; stream?: boolean; messages?: ChatMessage[]; max_tokens?: number; stream_options?: Record<string, unknown> };
     const rate = await checkRateLimit(owner.user.id, ipAddress);
     if (!rate.allowed) return respondError(res, 429, "Rate limit exceeded", "rate_limit_exceeded");
-    const route = await getGatewayRoute(body.model);
+    let route = await getGatewayRoute(body.model);
     if (!route) return respondError(res, 404, `Model '${body.model}' is unavailable`, "model_not_found");
+    const primaryRouting = (route.model.routingConfig ?? {}) as { fallbackProviderId?: number };
+    if (!route.provider.isHealthy && primaryRouting.fallbackProviderId) {
+      const fallback = await getGatewayFallbackRoute(body.model, primaryRouting.fallbackProviderId);
+      if (fallback) route = fallback;
+    }
     const creditCheck = await canSpendCredits(owner.user, route.model.slug, body.max_tokens ?? 1024);
     if (!creditCheck.allowed) return respondError(res, 402, `Insufficient Kiwi Credits. ${creditCheck.required} credits are required; your balance is ${creditCheck.balance}.`, "insufficient_credits");
     const runtimeCredential = await getProviderRuntimeCredential(route.provider.id);
@@ -206,15 +211,18 @@ export function registerGateway(app: Express) {
 
     try {
       const routing = (route.model.routingConfig ?? {}) as { protocol?: "openai" | "anthropic" | "gemini"; headers?: Record<string, string> };
-      const isAnthropic = routing.protocol === "anthropic" || route.provider.slug === "anthropic";
+      const providerProtocol = route.provider.protocol as "openai" | "anthropic" | "gemini" | undefined;
+      const providerHeaders = (route.provider.requestHeaders ?? {}) as Record<string, string>;
+      const protocol = routing.protocol ?? providerProtocol ?? (route.provider.slug === "anthropic" ? "anthropic" : "openai");
+      const isAnthropic = protocol === "anthropic";
       const baseUrl = assertSafeUpstreamUrl(route.provider.baseUrl);
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 60_000);
       const upstream = await fetch(`${baseUrl.toString().replace(/\/$/, "")}${isAnthropic ? "/messages" : "/chat/completions"}`, {
         method: "POST",
         headers: isAnthropic
-          ? { "Content-Type": "application/json", "x-api-key": runtimeCredential, "anthropic-version": "2023-06-01", ...(routing.headers ?? {}) }
-          : { "Content-Type": "application/json", Authorization: `Bearer ${runtimeCredential}`, ...(routing.headers ?? {}) },
+          ? { "Content-Type": "application/json", "x-api-key": runtimeCredential, "anthropic-version": "2023-06-01", ...(providerHeaders ?? {}), ...(routing.headers ?? {}) }
+          : { "Content-Type": "application/json", Authorization: `Bearer ${runtimeCredential}`, ...(providerHeaders ?? {}), ...(routing.headers ?? {}) },
         body: JSON.stringify(isAnthropic ? anthopicPayload(body, route.model.upstreamId) : { ...body, model: route.model.upstreamId, ...(body.stream ? { stream_options: { ...body.stream_options, include_usage: true } } : {}) }),
         signal: controller.signal,
       });

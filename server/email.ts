@@ -1,4 +1,5 @@
 import type { Request } from "express";
+import { createEmailOutbox } from "./db";
 
 function appOrigin(req: Request) {
   const configured = process.env.APP_URL?.trim();
@@ -8,27 +9,36 @@ function appOrigin(req: Request) {
   return `${req.protocol}://${host}`;
 }
 
+/** Neon is the source of truth. A separate worker or admin can process pending rows later. */
 export function emailDeliveryConfigured() {
-  return Boolean(process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL);
+  return Boolean(process.env.NEON_DATABASE_URL);
 }
 
-async function sendMail(input: { to: string; subject: string; html: string }) {
-  const key = process.env.RESEND_API_KEY;
-  if (!key || !process.env.RESEND_FROM_EMAIL) {
-    console.warn("[Email] Transactional mail is not configured; delivery was skipped.");
-    return false;
-  }
-  const response = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, body: JSON.stringify({ from: process.env.RESEND_FROM_EMAIL, to: [input.to], subject: input.subject, html: input.html }) });
-  if (!response.ok) throw new Error(`Email delivery failed (${response.status})`);
+async function queueMail(input: { userId?: number; to: string; purpose: "email_verify" | "password_reset"; subject: string; html: string }) {
+  await createEmailOutbox(input);
   return true;
 }
 
-export async function sendVerificationEmail(req: Request, email: string, token: string) {
+export async function sendVerificationEmail(req: Request, userId: number, email: string, token: string) {
   const url = `${appOrigin(req)}/verify-email?token=${encodeURIComponent(token)}`;
-  return sendMail({ to: email, subject: "Verify your Cloudhug Kiwi Router email", html: `<p>Welcome to Cloudhug's Kiwi Router.</p><p><a href="${url}">Verify your email address</a></p><p>This link expires in 30 minutes.</p>` });
+  return queueMail({ userId, to: email, purpose: "email_verify", subject: "Verify your Cloudhug Kiwi Router email", html: `<p>Welcome to Cloudhug's Kiwi Router.</p><p><a href="${url}">Verify your email address</a></p><p>This link expires in 30 minutes.</p>` });
 }
 
-export async function sendPasswordResetEmail(req: Request, email: string, token: string) {
+export async function sendPasswordResetEmail(req: Request, userId: number, email: string, token: string) {
   const url = `${appOrigin(req)}/reset-password?token=${encodeURIComponent(token)}`;
-  return sendMail({ to: email, subject: "Reset your Cloudhug Kiwi Router password", html: `<p>A password reset was requested for your account.</p><p><a href="${url}">Choose a new password</a></p><p>This link expires in 20 minutes. If you did not request it, you can ignore this email.</p>` });
+  return queueMail({ userId, to: email, purpose: "password_reset", subject: "Reset your Cloudhug Kiwi Router password", html: `<p>A password reset was requested for your account.</p><p><a href="${url}">Choose a new password</a></p><p>This link expires in 20 minutes. If you did not request it, you can ignore this email.</p>` });
 }
+
+export function describeEmailDelivery() {
+  return "Queued in Neon email_outbox; no external email provider is configured.";
+}
+
+export function getAuthLink(req: Request, purpose: "email_verify" | "password_reset", token: string) {
+  const path = purpose === "email_verify" ? "/verify-email" : "/reset-password";
+  return `${appOrigin(req)}${path}?token=${encodeURIComponent(token)}`;
+}
+
+export { appOrigin };
+
+const _unused = describeEmailDelivery;
+void _unused;

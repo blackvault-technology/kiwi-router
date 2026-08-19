@@ -51,6 +51,22 @@ describe("deep founder console contracts", () => {
     expect(router).toContain("protocol: z.enum([\"openai\", \"anthropic\", \"gemini\"])");
     expect(ui).toContain("OpenAI-compatible");
     expect(ui).toContain("Enable all");
+    expect(router).toContain("rotateUserApiKeys: adminProcedure");
+    expect(router).toContain("expireUserApiKeys: adminProcedure");
+    expect(router).toContain("quarantineUserApiKeys: adminProcedure");
+    expect(router).toContain("testModelRoute: adminProcedure");
+    expect(router).toContain('eventType: "founder_model_test"');
+    expect(router).toContain("testModelSample: adminProcedure");
+    expect(router).toContain('nonBillable: true');
+    expect(ui).toContain("Provider/model test playground");
+    expect(ui).toContain("Sample prompt");
+    expect(ui).toContain("Run sample");
+    expect(ui).toContain(">Test</Button>");
+    expect(router).toContain('eventType: "founder_user_api_keys_expired"');
+    expect(router).toContain('eventType: "founder_user_api_keys_quarantined"');
+    expect(ui).toContain("Expire keys");
+    expect(ui).toContain("Rotate keys");
+    expect(ui).toContain("Quarantine");
   });
 });
 

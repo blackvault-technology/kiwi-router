@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { and, desc, eq, gte, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/neon-http";
 import { neon } from "@neondatabase/serverless";
-import { accessBans, announcements, apiKeys, apiKeyProviderAccess, authTokens, couponCodes, couponRedemptions, creditLedger, loginRecords, models, providerCredentials, providerHealthChecks, providers, rateLimitBuckets, rateLimitPolicies, rateLimitSettings, referrals, requestLogs, securityEvents, sessions, usageDaily, users, type User } from "../drizzle/schema";
+import { accessBans, announcements, apiKeys, apiKeyProviderAccess, authTokens, emailOutbox, couponCodes, couponRedemptions, creditLedger, loginRecords, models, providerCredentials, providerHealthChecks, providers, rateLimitBuckets, rateLimitPolicies, rateLimitSettings, referrals, requestLogs, securityEvents, sessions, usageDaily, users, type User } from "../drizzle/schema";
 import { hashApiKey } from "./auth";
 import { isFounderEmail, normalizeEmail } from "./founder";
 import { decryptSecret } from "./crypto";
@@ -121,7 +121,7 @@ export async function createApiKey(userId: number, name: string) {
 }
 
 export async function listApiKeys(userId: number) {
-  return getDb().select({ id: apiKeys.id, name: apiKeys.name, keyPrefix: apiKeys.keyPrefix, lastFour: apiKeys.lastFour, isActive: apiKeys.isActive, lastUsedAt: apiKeys.lastUsedAt, revokedAt: apiKeys.revokedAt, createdAt: apiKeys.createdAt })
+  return getDb().select({ id: apiKeys.id, name: apiKeys.name, keyPrefix: apiKeys.keyPrefix, lastFour: apiKeys.lastFour, isActive: apiKeys.isActive, lastUsedAt: apiKeys.lastUsedAt, expiresAt: apiKeys.expiresAt, revokedAt: apiKeys.revokedAt, createdAt: apiKeys.createdAt })
     .from(apiKeys).where(eq(apiKeys.userId, userId)).orderBy(desc(apiKeys.createdAt));
 }
 
@@ -130,9 +130,26 @@ export async function revokeApiKey(userId: number, id: string) {
   return Boolean(result[0]);
 }
 
+export async function rotateUserApiKeys(userId: number) {
+  const db = getDb();
+  const revoked = await db.update(apiKeys).set({ isActive: false, revokedAt: new Date() }).where(and(eq(apiKeys.userId, userId), eq(apiKeys.isActive, true))).returning({ id: apiKeys.id });
+  const replacement = await createApiKey(userId, "Founder rotation");
+  return { revokedCount: revoked.length, replacement: { id: replacement.id, keyPrefix: replacement.keyPrefix, lastFour: replacement.lastFour, plainKey: replacement.plainKey } };
+}
+
+export async function expireUserApiKeys(userId: number) {
+  const expired = await getDb().update(apiKeys).set({ isActive: false, expiresAt: new Date() }).where(and(eq(apiKeys.userId, userId), eq(apiKeys.isActive, true))).returning({ id: apiKeys.id });
+  return { count: expired.length };
+}
+
+export async function quarantineUserApiKeys(userId: number) {
+  const revoked = await getDb().update(apiKeys).set({ isActive: false, revokedAt: new Date() }).where(and(eq(apiKeys.userId, userId), eq(apiKeys.isActive, true))).returning({ id: apiKeys.id });
+  return { count: revoked.length };
+}
+
 export async function getApiKeyOwner(plainKey: string) {
   const result = await getDb().select({ apiKey: apiKeys, user: users }).from(apiKeys).innerJoin(users, eq(apiKeys.userId, users.id))
-    .where(and(eq(apiKeys.keyHash, hashApiKey(plainKey)), eq(apiKeys.isActive, true), eq(users.isDisabled, false))).limit(1);
+    .where(and(eq(apiKeys.keyHash, hashApiKey(plainKey)), eq(apiKeys.isActive, true), sql<boolean>`(${apiKeys.expiresAt} IS NULL OR ${apiKeys.expiresAt} > NOW())`, eq(users.isDisabled, false))).limit(1);
   if (!result[0]) return undefined;
   await getDb().update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, result[0].apiKey.id));
   return result[0];
@@ -145,7 +162,12 @@ export async function listModels(enabledOnly = true) {
 
 export async function getGatewayRoute(slug: string) {
   return (await getDb().select({ model: models, provider: providers }).from(models).innerJoin(providers, eq(models.providerId, providers.id))
-    .where(and(eq(models.slug, slug), eq(models.isEnabled, true), eq(providers.isEnabled, true))).limit(1))[0];
+    .where(and(eq(models.slug, slug), eq(models.isEnabled, true), eq(providers.isEnabled, true))).orderBy(sql`COALESCE((${models.routingConfig}->>'priority')::int, 100)`).limit(1))[0];
+}
+
+export async function getGatewayFallbackRoute(slug: string, providerId: number) {
+  return (await getDb().select({ model: models, provider: providers }).from(models).innerJoin(providers, eq(models.providerId, providers.id))
+    .where(and(eq(models.slug, slug), eq(models.providerId, providerId), eq(models.isEnabled, true), eq(providers.isEnabled, true))).limit(1))[0];
 }
 
 export type ModelRoutingConfig = { protocol: "openai" | "anthropic" | "gemini"; priority: number; fallbackProviderId?: number; capabilities: { streaming: boolean; vision: boolean; tools: boolean; jsonMode: boolean; reasoning: boolean }; headers?: Record<string, string> };
@@ -502,6 +524,47 @@ export async function testProviderConnection(providerId: number) {
   }
 }
 
+/** Performs a non-billable model-route handshake by checking the provider catalog for the configured upstream ID. */
+export async function testModelRoute(modelId: number) {
+  const route = (await getDb().select({ model: models, provider: providers }).from(models).innerJoin(providers, eq(models.providerId, providers.id)).where(eq(models.id, modelId)).limit(1))[0];
+  if (!route) throw new Error("Model route not found");
+  const activeCredential = await resolveProviderCredential(route.provider.id);
+  if (!activeCredential) return { ok: false, statusCode: null, latencyMs: 0, detail: "No encrypted credential is configured", modelFound: false };
+  const startedAt = Date.now();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8_000);
+  try {
+    const response = await fetch(`${route.provider.baseUrl.replace(/\/$/, "")}/models`, { headers: route.provider.slug === "anthropic" ? { "x-api-key": decryptSecret(activeCredential.encryptedApiKey), "anthropic-version": "2023-06-01" } : { Authorization: `Bearer ${decryptSecret(activeCredential.encryptedApiKey)}` }, signal: controller.signal });
+    const payload = await response.json().catch(() => null) as { data?: Array<{ id?: string }> } | null;
+    const modelFound = Boolean(payload?.data?.some(item => item.id === route.model.upstreamId));
+    return { ok: response.ok && modelFound, statusCode: response.status, latencyMs: Date.now() - startedAt, detail: response.ok ? modelFound ? "Configured model is present in the provider catalog" : "Provider catalog does not contain this upstream model" : "Provider rejected the catalog handshake", modelFound };
+  } catch {
+    return { ok: false, statusCode: null, latencyMs: Date.now() - startedAt, detail: "Provider did not complete the model handshake", modelFound: false };
+  } finally { clearTimeout(timeout); }
+}
+/** Runs a founder sample request without user-credit deduction or normal gateway request logging. */
+export async function testModelSample(modelId: number, prompt: string) {
+  const route = (await getDb().select({ model: models, provider: providers }).from(models).innerJoin(providers, eq(models.providerId, providers.id)).where(eq(models.id, modelId)).limit(1))[0];
+  if (!route) throw new Error("Model route not found");
+  const activeCredential = await resolveProviderCredential(route.provider.id);
+  if (!activeCredential) return { ok: false, statusCode: null, latencyMs: 0, detail: "No encrypted credential is configured", preview: "" };
+  const startedAt = Date.now();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12_000);
+  try {
+    const routing = (route.model.routingConfig ?? {}) as { protocol?: "openai" | "anthropic" | "gemini"; headers?: Record<string, string> };
+    const protocol = routing.protocol ?? route.provider.protocol ?? (route.provider.slug === "anthropic" ? "anthropic" : "openai");
+    const isAnthropic = protocol === "anthropic";
+    const headers = isAnthropic ? { "Content-Type": "application/json", "x-api-key": decryptSecret(activeCredential.encryptedApiKey), "anthropic-version": "2023-06-01", ...(route.provider.requestHeaders ?? {}), ...(routing.headers ?? {}) } : { "Content-Type": "application/json", Authorization: `Bearer ${decryptSecret(activeCredential.encryptedApiKey)}`, ...(route.provider.requestHeaders ?? {}), ...(routing.headers ?? {}) };
+    const body = isAnthropic ? { model: route.model.upstreamId, max_tokens: 256, stream: false, messages: [{ role: "user", content: prompt }] } : { model: route.model.upstreamId, messages: [{ role: "user", content: prompt }], max_tokens: 256, stream: false };
+    const response = await fetch(`${route.provider.baseUrl.replace(/\/$/, "")}${isAnthropic ? "/messages" : "/chat/completions"}`, { method: "POST", headers, body: JSON.stringify(body), signal: controller.signal });
+    const payload = await response.json().catch(() => null) as any;
+    const preview = isAnthropic ? String(payload?.content?.filter((part: any) => part.type === "text").map((part: any) => part.text).join("") ?? "").slice(0, 1000) : String(payload?.choices?.[0]?.message?.content ?? "").slice(0, 1000);
+    return { ok: response.ok, statusCode: response.status, latencyMs: Date.now() - startedAt, detail: response.ok ? "Sample completed without charging Kiwi Credits or recording normal usage" : "Provider rejected the founder sample request", preview };
+  } catch {
+    return { ok: false, statusCode: null, latencyMs: Date.now() - startedAt, detail: "Provider did not complete the founder sample request", preview: "" };
+  } finally { clearTimeout(timeout); }
+}
 /** Archives a provider safely by disabling it and every attached route without deleting audit history. */
 export async function archiveProvider(providerId: number) {
   const db = getDb();
@@ -556,6 +619,12 @@ export async function createAuthToken(input: { userId: number; email: string; pu
 export async function consumeAuthToken(input: { rawToken: string; purpose: "email_verify" | "password_reset" }) {
   const now = new Date();
   return (await getDb().update(authTokens).set({ consumedAt: now }).where(and(eq(authTokens.tokenHash, hashApiKey(input.rawToken)), eq(authTokens.purpose, input.purpose), isNull(authTokens.consumedAt), gte(authTokens.expiresAt, now))).returning())[0];
+}
+
+export async function createEmailOutbox(input: { userId?: number; to: string; purpose: "email_verify" | "password_reset"; subject: string; html: string }) {
+  const row = (await getDb().insert(emailOutbox).values({ userId: input.userId, email: normalizeEmail(input.to), purpose: input.purpose, subject: input.subject, bodyHtml: input.html }).returning({ id: emailOutbox.id }))[0];
+  if (!row) throw new Error("Unable to create transactional email outbox record");
+  return row;
 }
 
 export async function takeRateLimit(input: { scope: string; subject: string; maxHits: number; windowMs: number }) {

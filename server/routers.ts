@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { encryptSecret } from "./crypto";
-import { activateReferralForVerifiedUser, archiveModel, archiveProvider, banUserAccess, claimReferralRewards, clearLoginFailures, consumeAuthToken, createAnnouncement, createApiKey, createAuthToken, createCouponCode, createModel, createPendingReferral, createUser, deactivateCouponCode, deleteAllUserSessions, getAnalytics, getCreditEconomy, getOverview, getRateLimitSettings, getReferralProgramMetrics, getReferralStats, getUserByEmail, getUserById, getUserForensics, previewProviderModels, listAdminApiKeys, listAdminRequestLogs, listAdminSecurityEvents, listAdminUserLedger, listAdminUserSessions, listAdminUserUsage, listAnnouncements, listApiKeys, listCouponCodes, listModels, listProviderCredentials, listProviderHealth, listProviders, listRateLimitPolicies, listUsers, markEmailVerified, revokeAllUserApiKeys, recordFailedLogin, recordLogin, recordSecurityEvent, redeemCouponCode, revokeApiKey, restoreModel, saveProvider, saveProviderCredential, saveRateLimitPolicy, saveRateLimits, seedDemoData, setAnnouncementActive, setApiKeyProviderAccess, setGlobalApiEnabled, setProviderCredentialActive, setRateLimitPolicyEnabled, setUserDisabled, syncProviderModels, takeRateLimit, testProviderConnection, testProviderCredential, updateModel, updatePasswordAndRevokeSessions } from "./db";
+import { activateReferralForVerifiedUser, archiveModel, archiveProvider, banUserAccess, claimReferralRewards, clearLoginFailures, consumeAuthToken, createAnnouncement, createApiKey, createAuthToken, createCouponCode, createModel, createPendingReferral, createUser, deactivateCouponCode, deleteAllUserSessions, getAnalytics, getCreditEconomy, getOverview, getRateLimitSettings, getReferralProgramMetrics, getReferralStats, getUserByEmail, getUserById, getUserForensics, previewProviderModels, listAdminApiKeys, listAdminRequestLogs, listAdminSecurityEvents, listAdminUserLedger, listAdminUserSessions, listAdminUserUsage, listAnnouncements, listApiKeys, listCouponCodes, listModels, listProviderCredentials, listProviderHealth, listProviders, listRateLimitPolicies, listUsers, markEmailVerified, expireUserApiKeys, quarantineUserApiKeys, revokeAllUserApiKeys, rotateUserApiKeys, recordFailedLogin, recordLogin, recordSecurityEvent, redeemCouponCode, revokeApiKey, restoreModel, saveProvider, saveProviderCredential, saveRateLimitPolicy, saveRateLimits, seedDemoData, setAnnouncementActive, setApiKeyProviderAccess, setGlobalApiEnabled, setProviderCredentialActive, setRateLimitPolicyEnabled, setUserDisabled, syncProviderModels, takeRateLimit, testModelRoute, testModelSample, testProviderConnection, testProviderCredential, updateModel, updatePasswordAndRevokeSessions } from "./db";
 import { endSession, hashApiKey, hashPassword, startSession, toPublicUser, verifyPassword } from "./auth";
 import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { addCredits, adjustCredits, creditSummary } from "./credits";
@@ -14,6 +14,15 @@ import { assertSafeUpstreamUrl } from "./security";
 
 const emailSchema = z.string().trim().email().max(320);
 const passwordSchema = z.string().min(10, "Use at least 10 characters").max(128);
+
+async function deliverTransactionalEmail(send: () => Promise<boolean>) {
+  try {
+    const delivered = await send();
+    if (!delivered) throw new Error("Transactional email is not configured");
+  } catch {
+    throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Transactional email delivery is currently unavailable. Please try again later." });
+  }
+}
 
 export const appRouter = router({
   auth: router({
@@ -33,7 +42,7 @@ export const appRouter = router({
         await recordSecurityEvent({ eventType: referral.created ? "referral_pending_created" : "referral_rejected_at_signup", userId: user.id, ipAddress, metadata: { reason: referral.reason ?? "created" } });
       }
       const token = await createAuthToken({ userId: user.id, email: user.email, purpose: "email_verify", requestIp: ipAddress, expiresInMs: 30 * 60_000 });
-      await sendVerificationEmail(ctx.req, user.email, token);
+      await deliverTransactionalEmail(() => sendVerificationEmail(ctx.req, user.id, user.email, token));
       await recordSecurityEvent({ eventType: "registration_created", userId: user.id, ipAddress });
       return { email: user.email, requiresEmailVerification: true };
     }),
@@ -56,7 +65,7 @@ export const appRouter = router({
       const user = await getUserByEmail(input.email);
       if (user && !user.emailVerifiedAt && !user.isDisabled) {
         const token = await createAuthToken({ userId: user.id, email: user.email, purpose: "email_verify", requestIp: ipAddress, expiresInMs: 30 * 60_000 });
-        await sendVerificationEmail(ctx.req, user.email, token);
+        await deliverTransactionalEmail(() => sendVerificationEmail(ctx.req, user.id, user.email, token));
         await recordSecurityEvent({ eventType: "verification_resent", userId: user.id, ipAddress });
       }
       return { success: true };
@@ -84,7 +93,7 @@ export const appRouter = router({
       const user = await getUserByEmail(input.email);
       if (user && user.emailVerifiedAt && !user.isDisabled) {
         const token = await createAuthToken({ userId: user.id, email: user.email, purpose: "password_reset", requestIp: ipAddress, expiresInMs: 20 * 60_000 });
-        await sendPasswordResetEmail(ctx.req, user.email, token);
+        await deliverTransactionalEmail(() => sendPasswordResetEmail(ctx.req, user.id, user.email, token));
         await recordSecurityEvent({ eventType: "password_reset_requested", userId: user.id, ipAddress });
       }
       return { success: true };
@@ -140,6 +149,9 @@ export const appRouter = router({
     userSessions: adminProcedure.input(z.object({ userId: z.number().int().positive() })).query(({ input }) => listAdminUserSessions(input.userId)),
     revokeUserSessions: adminProcedure.input(z.object({ userId: z.number().int().positive() })).mutation(async ({ input, ctx }) => { if (input.userId === ctx.user.id) throw new TRPCError({ code: "FORBIDDEN", message: "The founder session cannot be revoked from this panel" }); await deleteAllUserSessions(input.userId); await recordSecurityEvent({ eventType: "founder_user_sessions_revoked", userId: ctx.user.id, metadata: { targetUserId: input.userId } }); return { success: true }; }),
     revokeUserApiKeys: adminProcedure.input(z.object({ userId: z.number().int().positive() })).mutation(async ({ input, ctx }) => { const revoked = await revokeAllUserApiKeys(input.userId); await recordSecurityEvent({ eventType: "founder_user_api_keys_revoked", userId: ctx.user.id, metadata: { targetUserId: input.userId, count: revoked.length } }); return { count: revoked.length }; }),
+    rotateUserApiKeys: adminProcedure.input(z.object({ userId: z.number().int().positive() })).mutation(async ({ input, ctx }) => { const result = await rotateUserApiKeys(input.userId); await recordSecurityEvent({ eventType: "founder_user_api_keys_rotated", userId: ctx.user.id, metadata: { targetUserId: input.userId, revokedCount: result.revokedCount, replacementKeyId: result.replacement.id } }); return result; }),
+    expireUserApiKeys: adminProcedure.input(z.object({ userId: z.number().int().positive() })).mutation(async ({ input, ctx }) => { const result = await expireUserApiKeys(input.userId); await recordSecurityEvent({ eventType: "founder_user_api_keys_expired", userId: ctx.user.id, metadata: { targetUserId: input.userId, count: result.count } }); return result; }),
+    quarantineUserApiKeys: adminProcedure.input(z.object({ userId: z.number().int().positive() })).mutation(async ({ input, ctx }) => { const result = await quarantineUserApiKeys(input.userId); await recordSecurityEvent({ eventType: "founder_user_api_keys_quarantined", userId: ctx.user.id, metadata: { targetUserId: input.userId, count: result.count } }); return result; }),
     userUsage: adminProcedure.input(z.object({ userId: z.number().int().positive() })).query(({ input }) => listAdminUserUsage(input.userId)),
     userLedger: adminProcedure.input(z.object({ userId: z.number().int().positive() })).query(({ input }) => listAdminUserLedger(input.userId)),
     requestLogs: adminProcedure.input(z.object({ userId: z.number().int().positive().optional(), modelSlug: z.string().trim().max(120).optional(), status: z.enum(["success", "error"]).optional(), from: z.string().date().optional(), to: z.string().date().optional(), limit: z.number().int().min(1).max(500).default(200) }).default({ limit: 200 })).query(({ input }) => listAdminRequestLogs(input)),
@@ -179,6 +191,8 @@ export const appRouter = router({
     previewProviderModels: adminProcedure.input(z.object({ providerId: z.number().int().positive() })).query(({ input }) => previewProviderModels(input.providerId)),
     syncProviderModels: adminProcedure.input(z.object({ providerId: z.number().int().positive() })).mutation(async ({ input, ctx }) => { const result = await syncProviderModels(input.providerId); await recordSecurityEvent({ eventType: "founder_provider_sync", userId: ctx.user.id, metadata: { providerId: input.providerId, discovered: result.discovered, mode: result.mode, ok: result.ok, statusCode: result.statusCode, latencyMs: "latencyMs" in result ? result.latencyMs : undefined } }); return result; }),
     testProviderConnection: adminProcedure.input(z.object({ providerId: z.number().int().positive() })).mutation(async ({ input, ctx }) => { const result = await testProviderConnection(input.providerId); await recordSecurityEvent({ eventType: "founder_provider_test", userId: ctx.user.id, metadata: { providerId: input.providerId, ok: result.ok, statusCode: result.statusCode, latencyMs: result.latencyMs } }); return result; }),
+    testModelRoute: adminProcedure.input(z.object({ modelId: z.number().int().positive() })).mutation(async ({ input, ctx }) => { const result = await testModelRoute(input.modelId); await recordSecurityEvent({ eventType: "founder_model_test", userId: ctx.user.id, metadata: { modelId: input.modelId, ok: result.ok, statusCode: result.statusCode, latencyMs: result.latencyMs, modelFound: result.modelFound } }); return result; }),
+    testModelSample: adminProcedure.input(z.object({ modelId: z.number().int().positive(), prompt: z.string().trim().min(1).max(2000) })).mutation(async ({ input, ctx }) => { const result = await testModelSample(input.modelId, input.prompt); await recordSecurityEvent({ eventType: "founder_model_sample_test", userId: ctx.user.id, metadata: { modelId: input.modelId, ok: result.ok, statusCode: result.statusCode, latencyMs: result.latencyMs, nonBillable: true } }); return result; }),
     archiveProvider: adminProcedure.input(z.object({ providerId: z.number().int().positive() })).mutation(async ({ input, ctx }) => { const provider = await archiveProvider(input.providerId); await recordSecurityEvent({ eventType: "founder_provider_archived", userId: ctx.user.id, metadata: { providerId: input.providerId, slug: provider.slug } }); return provider; }),
     saveProvider: adminProcedure.input(z.object({ slug: z.string().trim().min(2).max(50), displayName: z.string().trim().min(2).max(100), baseUrl: z.string().url(), protocol: z.enum(["openai", "anthropic", "gemini"]).default("openai"), requestHeaders: z.record(z.string().regex(/^[a-zA-Z0-9-]+$/), z.string().max(200)).default({}), apiKey: z.string().trim().min(1).optional(), isEnabled: z.boolean() })).mutation(async ({ input, ctx }) => { assertSafeUpstreamUrl(input.baseUrl); const provider = await saveProvider({ slug: input.slug, displayName: input.displayName, baseUrl: input.baseUrl, protocol: input.protocol, requestHeaders: input.requestHeaders, isEnabled: input.isEnabled, encryptedApiKey: input.apiKey ? encryptSecret(input.apiKey) : undefined }); await recordSecurityEvent({ eventType: "founder_provider_saved", userId: ctx.user.id, metadata: { providerId: provider.id, isEnabled: input.isEnabled, protocol: input.protocol, headerNames: Object.keys(input.requestHeaders), credentialChanged: Boolean(input.apiKey) } }); return provider; }),
     rateLimits: adminProcedure.query(() => getRateLimitSettings()),

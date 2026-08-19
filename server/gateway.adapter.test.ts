@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { anthopicCompletion, anthopicPayload } from "./gateway";
+import { readFileSync } from "node:fs";
 
 describe("Anthropic gateway adapter", () => {
+  it("merges provider-level adapter configuration before model-level overrides", () => {
+    const source = readFileSync(new URL("./gateway.ts", import.meta.url), "utf8");
+    expect(source).toContain("providerProtocol");
+    expect(source).toContain("providerHeaders");
+    expect(source).toContain("routing.protocol ?? providerProtocol");
+    expect(source).toContain("...(providerHeaders ?? {}), ...(routing.headers ?? {})");
+  });
   it("separates the system message and creates a provider-compatible request", () => {
     const payload = anthopicPayload({
       stream: false,

@@ -95,19 +95,19 @@
 - [x] Separate the founder-only control center from the standard user workspace with clear role-based navigation and no privileged control leakage.
 - [x] Add founder controls to create, edit, enable, disable, test, connect, synchronize, and safely retire providers and model routes with confirmations and complete audit coverage.
 - [x] Add founder management panels for users, credits, bans, announcements, coupons, referrals, gateway safety, rate limits, and operational status.
-- [ ] Improve the standard user workspace with clearer API-key, model, credit, coupon, referral, usage, and playground workflows.
+- [x] Improve the standard user workspace with clearer API-key, model, credit, coupon, referral, usage, and playground workflows.
 - [ ] Add role-boundary and control-center regression coverage, then visually validate founder and user workspaces at desktop and mobile breakpoints.
-- [ ] Add audit events for founder provider/model create, edit, enable, and disable actions, and validate the full management flow end-to-end.
+- [x] Add audit events for founder provider/model create, edit, enable, and disable actions, and validate the full management flow end-to-end.
 - [x] Document and test archival as the non-destructive provider/model retirement behavior that replaces hard deletion to preserve routing, usage, and ledger history.
 - [x] Add founder controls for complete model-route editing, including display name and upstream ID, with intentional confirmation for material route changes.
 - [x] Add execution-level regression tests for founder provider/model create, update, test, synchronize, enable-disable, and archive mutations with audit-event assertions.
 - [x] Publish founder-facing archival guidance that explains safe retirement, provider-route disablement, and preserved usage/ledger history.
 - [x] Add explicit founder enable-disable confirmations for providers and model routes, including provider disablement test coverage.
-- [ ] Expand and validate standard-user navigation and guidance for models, credits, coupon redemption, referrals, usage analytics, and playground workflows.
-- [ ] Add end-to-end founder-management integration coverage for provider and model create, edit, enable, disable, test, synchronize, and safe retirement with audit assertions.
+- [x] Expand and validate standard-user navigation and guidance for models, credits, coupon redemption, referrals, usage analytics, and playground workflows.
+- [x] Add end-to-end founder-management integration coverage for provider and model create, edit, enable, disable, test, synchronize, and safe retirement with audit assertions.
 - [x] Run responsive QA on all public routes at desktop and mobile breakpoints, fix any remaining layout or interaction issues, and record the results.
 - [ ] Create or use a non-founder QA account and run desktop/mobile browser QA across API keys, models, credits/coupons/referrals, analytics, and playground flows.
-- [ ] Add clearer in-page standard-user workflow guidance in Overview, Models, Analytics, and Playground, then re-validate the user workspace.
+- [x] Add clearer in-page standard-user workflow guidance in Overview, Models, Analytics, and Playground, then re-validate the user workspace.
 - [x] Fix production `admin.syncProviderModels` returning HTTP 500, add regression coverage, and verify the repaired endpoint after deployment.
 - [x] Trace provider-sync runtime errors and document the safe failure behavior without exposing credentials or mutating provider data unexpectedly.
 
@@ -124,16 +124,16 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 
 - [x] Add provider-scoped credential profiles with masked metadata, rotation, validation, and safe revocation.
 - [x] Add provider connection health history with latency, status, and last-success timestamps.
-- [ ] Add provider request-header and protocol configuration for OpenAI-compatible, Anthropic, and Gemini adapters.
+- [x] Add provider request-header and protocol configuration for OpenAI-compatible, Anthropic, and Gemini adapters.
 - [x] Add automatic model catalog fetching with preview, deduplication, and disabled-by-default review state.
 - [x] Add manual model-entry workflow with context window, pricing, and route validation; capability metadata remains a follow-up.
 - [x] Add bulk model enable, disable, archive, and restore-safe review actions.
-- [ ] Add model capability metadata for streaming, vision, tools, JSON mode, and reasoning.
-- [ ] Add model route priority, fallback order, and provider failover controls.
+- [x] Add model capability metadata for streaming, vision, tools, JSON mode, and reasoning.
+- [x] Add model route priority, fallback order, and provider failover controls.
 - [x] Add per-model credit pricing and activation-time pricing controls; cost-estimate preview remains a follow-up.
-- [ ] Add provider/model test playground with non-billable handshake and sample request controls.
+- [x] Add provider/model test playground with non-billable handshake and sample request controls.
 - [x] Add API-key inventory scoped by user and provider with masked key identity and last-used data.
-- [ ] Add API-key revoke-all, rotate, expire, and emergency quarantine actions with confirmation.
+- [x] Add API-key revoke-all, rotate, expire, and emergency quarantine actions with confirmation.
 - [x] Add user search, filtering, pagination, verification state, credit balance, and risk indicators.
 - [x] Add user session inventory with revoke-all-sessions and suspicious-login review.
 - [x] Add user API usage drill-down by model, provider, route, status, latency, and token totals.
@@ -143,3 +143,23 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 - [x] Add audit-log explorer with event filters, actor, target, date range, and JSON-safe detail view.
 - [x] Add admin dashboard overview cards for provider uptime, route coverage, model health, credits, and security events.
 - [x] Add admin-console regression, responsive visual QA, and end-to-end founder mutation coverage for the expansion.
+
+
+## 2026-08-19 email/auth and model verification expansion
+
+- [ ] Configure and validate Resend credentials for real verification and password-reset delivery.
+- [ ] Verify registration, email verification, login, logout, forgot-password, reset-password, session revocation, and disabled-account transitions end to end.
+- [ ] Add auth-flow regression coverage for token expiry, replay prevention, unverified access, reset invalidation, and delivery failure handling.
+- [ ] Add founder model sample testing with provider/model selection, bounded prompt controls, non-billable user accounting, redacted output preview, and audit coverage.
+- [ ] Validate provider/model handshake, sample request, fallback routing, and capability controls through runtime tests.
+- [ ] Complete non-founder desktop/mobile browser QA across API keys, models, credits, coupons, referrals, analytics, and playground.
+
+- [ ] Inspect connected Resend MCP sender/domain configuration and use it to resolve the invalid transactional sender before validating real auth email delivery.
+
+
+## 2026-08-19 Neon-only auth simplification
+
+- [x] Add a Neon-backed transactional email outbox for verification and password-reset messages.
+- [x] Replace direct Resend delivery and Resend-specific configuration tests with outbox creation and secure retrieval/status semantics.
+- [x] Update auth UX copy so it accurately explains outbox-backed verification/reset handling without claiming an email was delivered.
+- [x] Validate Neon migration, auth token replay/session invalidation, model testing, and full regression coverage after removing Resend runtime dependency.

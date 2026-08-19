@@ -6,6 +6,7 @@ export const creditEntryType = pgEnum("credit_entry_type", ["grant", "airdrop", 
 export const creditBucket = pgEnum("credit_bucket", ["stipend", "purchased"]);
 export const banScope = pgEnum("ban_scope", ["user", "ip", "email_domain"]);
 export const authTokenPurpose = pgEnum("auth_token_purpose", ["email_verify", "password_reset"]);
+export const emailOutboxStatus = pgEnum("email_outbox_status", ["pending", "claimed", "sent", "failed"]);
 export const referralStatus = pgEnum("referral_status", ["pending", "activated", "rejected"]);
 
 export const users = pgTable("users", {
@@ -43,6 +44,7 @@ export const apiKeys = pgTable("api_keys", {
   lastFour: varchar("last_four", { length: 4 }).notNull(),
   isActive: boolean("is_active").notNull().default(true),
   lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
   revokedAt: timestamp("revoked_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, table => [uniqueIndex("api_keys_hash_idx").on(table.keyHash), index("api_keys_user_idx").on(table.userId)]);
@@ -263,6 +265,22 @@ export const authTokens = pgTable("auth_tokens", {
   requestIp: varchar("request_ip", { length: 64 }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, table => [uniqueIndex("auth_tokens_hash_idx").on(table.tokenHash), index("auth_tokens_email_purpose_idx").on(table.email, table.purpose)]);
+
+export const emailOutbox = pgTable("email_outbox", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }),
+  email: varchar("email", { length: 320 }).notNull(),
+  purpose: authTokenPurpose("purpose").notNull(),
+  subject: varchar("subject", { length: 200 }).notNull(),
+  bodyHtml: text("body_html").notNull(),
+  status: emailOutboxStatus("status").notNull().default("pending"),
+  availableAt: timestamp("available_at", { withTimezone: true }).notNull().defaultNow(),
+  claimedAt: timestamp("claimed_at", { withTimezone: true }),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+  failedAt: timestamp("failed_at", { withTimezone: true }),
+  failureReason: varchar("failure_reason", { length: 500 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [index("email_outbox_status_available_idx").on(table.status, table.availableAt), index("email_outbox_email_created_idx").on(table.email, table.createdAt)]);
 
 export const rateLimitBuckets = pgTable("rate_limit_buckets", {
   id: serial("id").primaryKey(),
