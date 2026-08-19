@@ -96,7 +96,7 @@
 - [x] Add founder controls to create, edit, enable, disable, test, connect, synchronize, and safely retire providers and model routes with confirmations and complete audit coverage.
 - [x] Add founder management panels for users, credits, bans, announcements, coupons, referrals, gateway safety, rate limits, and operational status.
 - [x] Improve the standard user workspace with clearer API-key, model, credit, coupon, referral, usage, and playground workflows.
-- [ ] Add role-boundary and control-center regression coverage, then visually validate founder and user workspaces at desktop and mobile breakpoints.
+- [x] Add role-boundary and control-center regression coverage, then visually validate founder and user workspaces at desktop and mobile breakpoints.
 - [x] Add audit events for founder provider/model create, edit, enable, and disable actions, and validate the full management flow end-to-end.
 - [x] Document and test archival as the non-destructive provider/model retirement behavior that replaces hard deletion to preserve routing, usage, and ledger history.
 - [x] Add founder controls for complete model-route editing, including display name and upstream ID, with intentional confirmation for material route changes.
@@ -112,7 +112,7 @@
 - [x] Trace provider-sync runtime errors and document the safe failure behavior without exposing credentials or mutating provider data unexpectedly.
 
 પરિચ್ಛೇದ
-- [ ] Restore the prior dashboard-upgrade validation items after resolving the sync blocker: standard-user browser QA, deeper user guidance validation, and end-to-end founder management integration coverage.
+- [x] Restore the prior dashboard-upgrade validation items after resolving the sync blocker: standard-user browser QA, deeper user guidance validation, and end-to-end founder management integration coverage.
 
 ---
 
@@ -163,3 +163,10 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 - [x] Replace direct Resend delivery and Resend-specific configuration tests with outbox creation and secure retrieval/status semantics.
 - [x] Update auth UX copy so it accurately explains outbox-backed verification/reset handling without claiming an email was delivered.
 - [x] Validate Neon migration, auth token replay/session invalidation, model testing, and full regression coverage after removing Resend runtime dependency.
+
+
+## 2026-08-19 production API failure report
+
+- [x] Diagnose and fix production 500 responses for `admin.auditEvents` and `apiKeys.list`.
+- [x] Diagnose and fix the production 504 timeout for `/api/v1/chat/completions`.
+- [x] Add regression coverage for the repaired admin, API-key, and gateway paths and validate the production-shaped build.
