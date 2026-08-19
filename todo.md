@@ -232,3 +232,10 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 - [x] Add step-by-step provider/API-key/model discovery and manual model setup with security-preserving confirmations.
 - [x] Add model-level multi-provider route configuration, priority/fallback testing, and publish-to-users controls.
 - [x] Add responsive usability and regression coverage for the complete Mini OmniRoute admin workflow.
+
+
+## 2026-08-19 dual production failure repair
+
+- [ ] Fix production `admin.auditEvents` HTTP 500 and validate the Neon query/serialization path.
+- [ ] Fix production `/api/v1/chat/completions` HTTP 502 after the published gateway failover patch and validate the live route.
+- [x] Add combined regression coverage and rerun the full suite.

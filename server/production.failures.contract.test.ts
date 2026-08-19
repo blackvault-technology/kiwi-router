@@ -14,7 +14,8 @@ describe("production API failure repairs", () => {
   });
 
   it("casts admin security-event IDs to JSON-safe text", () => {
-    expect(db).toContain('SELECT id::text AS id, event_type AS "eventType"');
+    expect(db).toContain('id: sql<string>`${securityEvents.id}::text`');
+    expect(db).toContain('eventType: securityEvents.eventType');
   });
 
   it("fails over across provider routes and returns a stable JSON error on upstream failure", () => {

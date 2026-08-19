@@ -357,8 +357,25 @@ export async function listAdminRequestLogs(input: { userId?: number; modelSlug?:
 }
 
 export async function listAdminSecurityEvents(input: { userId?: number; targetUserId?: number; eventType?: string; from?: string; to?: string; limit?: number } = {}) {
-  const result = await getDb().execute(sql`SELECT id::text AS id, event_type AS "eventType", user_id AS "userId", ip_address AS "ipAddress", metadata, created_at AS "createdAt" FROM security_events WHERE (${input.userId ?? null} IS NULL OR user_id = ${input.userId ?? null}) AND (${input.targetUserId ?? null} IS NULL OR metadata->>'targetUserId' = ${input.targetUserId == null ? null : String(input.targetUserId)}) AND (${input.eventType ?? null} IS NULL OR event_type = ${input.eventType ?? null}) AND (${input.from ?? null} IS NULL OR created_at >= ${input.from ?? null}::timestamptz) AND (${input.to ?? null} IS NULL OR created_at < ${input.to ?? null}::timestamptz + INTERVAL '1 day') ORDER BY created_at DESC LIMIT ${Math.min(input.limit ?? 200, 500)}`);
-  return queryRows(result);
+  const filters = [];
+  if (input.userId !== undefined) filters.push(eq(securityEvents.userId, input.userId));
+  if (input.targetUserId !== undefined) filters.push(sql`${securityEvents.metadata}->>'targetUserId' = ${String(input.targetUserId)}`);
+  if (input.eventType) filters.push(eq(securityEvents.eventType, input.eventType));
+  if (input.from) filters.push(gte(securityEvents.createdAt, new Date(`${input.from}T00:00:00.000Z`)));
+  if (input.to) {
+    const end = new Date(`${input.to}T00:00:00.000Z`);
+    end.setUTCDate(end.getUTCDate() + 1);
+    filters.push(lt(securityEvents.createdAt, end));
+  }
+  const rows = await getDb().select({
+    id: sql<string>`${securityEvents.id}::text`,
+    eventType: securityEvents.eventType,
+    userId: securityEvents.userId,
+    ipAddress: securityEvents.ipAddress,
+    metadata: securityEvents.metadata,
+    createdAt: securityEvents.createdAt,
+  }).from(securityEvents).where(filters.length ? and(...filters) : undefined).orderBy(desc(securityEvents.createdAt)).limit(Math.min(input.limit ?? 200, 500));
+  return rows;
 }
 
 export async function revokeAllUserApiKeys(userId: number) {
