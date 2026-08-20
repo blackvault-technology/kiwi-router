@@ -281,3 +281,14 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 - [x] Close any missing UX implementation gaps across landing, navigation, workspace, Playground, Models, API Keys, Analytics, credits, referrals, and founder console.
 - [x] Verify accessibility, keyboard navigation, reduced motion, loading/error/empty states, and desktop/mobile behavior for the full UX surface.
 - [x] Run the complete TypeScript and regression suite and save a final UX checkpoint.
+
+## 2026-08-20 founder operations app revamp
+
+- [x] Define the separate founder operations-app information architecture, role boundary, navigation, and real-data safety rules.
+- [x] Audit current founder procedures, Neon tables, model/provider relationships, API-key credential handling, and public model discovery.
+- [x] Design and implement grouped public model identities so multiple provider routes share one public Kiwi model ID while preserving route-level upstream identities and history.
+- [x] Add real Neon-backed CRUD and guided workflows for providers, provider credentials, model identities, provider routes, health tests, priorities, fallback, and retirement.
+- [x] Replace the embedded founder section with a separate founder operations shell that has no standard-user sidebar or user navigation leakage.
+- [x] Add operational upgrades for bulk actions, filters, saved views, route simulation, credential rotation, health history, audit inspection, safe confirmations, and degraded-state recovery.
+- [x] Add regression tests for grouped model identity routing, founder permissions, real-data mutations, route history, audit events, and operations-app rendering.
+- [x] Run the complete TypeScript and regression suite, responsive verification, and save a deploy-ready checkpoint.

@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { and, desc, eq, gte, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/neon-http";
 import { neon } from "@neondatabase/serverless";
-import { accessBans, announcements, apiKeys, apiKeyProviderAccess, authTokens, autoRoutePolicies, emailOutbox, googleIdentities, couponCodes, couponRedemptions, creditLedger, loginRecords, models, providerCredentials, providerHealthChecks, providers, rateLimitBuckets, rateLimitPolicies, rateLimitSettings, referrals, requestLogs, securityEvents, sessions, usageDaily, users, type User } from "../drizzle/schema";
+import { accessBans, announcements, apiKeys, apiKeyProviderAccess, authTokens, autoRoutePolicies, emailOutbox, googleIdentities, couponCodes, couponRedemptions, creditLedger, loginRecords, modelIdentities, models, providerCredentials, providerHealthChecks, providers, rateLimitBuckets, rateLimitPolicies, rateLimitSettings, referrals, requestLogs, securityEvents, sessions, usageDaily, users, type User } from "../drizzle/schema";
 import { hashApiKey } from "./auth";
 import { isFounderEmail, normalizeEmail } from "./founder";
 import { decryptSecret } from "./crypto";
@@ -206,6 +206,38 @@ export async function listModels(enabledOnly = true) {
   return [{ model: autoModel, provider: autoProvider }, ...deduped];
 }
 
+export async function listModelIdentities() {
+  const result = await getDb().execute(sql`
+    SELECT i.id, i.slug, i.display_name AS "displayName", i.description, i.is_enabled AS "isEnabled",
+      i.created_at AS "createdAt", i.updated_at AS "updatedAt",
+      COUNT(m.id)::int AS "routeCount",
+      COUNT(m.id) FILTER (WHERE m.is_enabled = true AND p.is_enabled = true)::int AS "enabledRouteCount",
+      json_agg(json_build_object(
+        'id', m.id, 'providerId', m.provider_id, 'providerSlug', p.slug, 'providerName', p.display_name,
+        'upstreamId', m.upstream_id, 'isEnabled', m.is_enabled, 'isHealthy', p.is_healthy,
+        'priority', CASE WHEN (m.routing_config->>'priority') ~ '^[0-9]+$' THEN (m.routing_config->>'priority')::int ELSE 100 END,
+        'contextWindow', m.context_window, 'creditCostPer1kTokens', m.credit_cost_per_1k_tokens
+      ) ORDER BY CASE WHEN (m.routing_config->>'priority') ~ '^[0-9]+$' THEN (m.routing_config->>'priority')::int ELSE 100 END, m.id) FILTER (WHERE m.id IS NOT NULL) AS routes
+    FROM model_identities i
+    LEFT JOIN models m ON m.identity_id = i.id
+    LEFT JOIN providers p ON p.id = m.provider_id
+    GROUP BY i.id
+    ORDER BY i.slug
+  `);
+  return queryRows<any>(result).map(row => ({ ...row, routeCount: Number(row.routeCount ?? 0), enabledRouteCount: Number(row.enabledRouteCount ?? 0), routes: Array.isArray(row.routes) ? row.routes : [] }));
+}
+
+export async function upsertModelIdentity(input: { slug: string; displayName: string; description?: string; isEnabled?: boolean }) {
+  const slug = input.slug.trim().toLowerCase();
+  if (!/^[a-z0-9][a-z0-9._/-]{1,119}$/.test(slug)) throw new Error("Public model ID must use letters, numbers, dots, slashes, hyphens, or underscores");
+  await getDb().insert(modelIdentities).values({ slug, displayName: input.displayName.trim(), description: input.description?.trim() || null, isEnabled: input.isEnabled ?? true }).onConflictDoUpdate({ target: modelIdentities.slug, set: { displayName: input.displayName.trim(), description: input.description?.trim() || null, isEnabled: input.isEnabled ?? true, updatedAt: new Date() } });
+  return (await getDb().select().from(modelIdentities).where(eq(modelIdentities.slug, slug)).limit(1))[0]!;
+}
+
+export async function updateModelIdentity(id: number, input: { displayName?: string; description?: string; isEnabled?: boolean }) {
+  return (await getDb().update(modelIdentities).set({ ...input, updatedAt: new Date() }).where(eq(modelIdentities.id, id)).returning())[0];
+}
+
 export async function getAutoRoutePolicy() {
   return (await getDb().select().from(autoRoutePolicies).where(eq(autoRoutePolicies.slug, KIWI_AUTO_MODEL_SLUG)).limit(1))[0] ?? { slug: KIWI_AUTO_MODEL_SLUG, displayName: "Kiwi Auto Model", isEnabled: true, maxCostPer1k: "1000", latencyBudgetMs: 45000, minContextWindow: 4096, requireHealthy: true, fallbackOn5xx: true, fallbackOnTimeout: true, routingConfig: {} };
 }
@@ -251,9 +283,10 @@ export type ModelRoutingConfig = { protocol: "openai" | "anthropic" | "gemini"; 
 
 export async function createModel(input: { slug: string; displayName: string; providerId: number; upstreamId: string; contextWindow: number; inputPrice: string; outputPrice: string; creditCostPer1kTokens: string; isEnabled: boolean; routingConfig?: ModelRoutingConfig }) {
   const routingConfig = input.routingConfig ?? { protocol: "openai" as const, priority: 100, capabilities: { streaming: true, vision: false, tools: false, jsonMode: false, reasoning: false } };
-  const row = (await getDb().insert(models).values({ ...input, routingConfig }).onConflictDoUpdate({
+  const identity = await upsertModelIdentity({ slug: input.slug, displayName: input.slug === KIWI_AUTO_MODEL_SLUG ? "Kiwi Auto Model" : input.displayName });
+  const row = (await getDb().insert(models).values({ ...input, identityId: identity.id, routingConfig }).onConflictDoUpdate({
     target: [models.slug, models.providerId, models.upstreamId],
-    set: { displayName: input.displayName, contextWindow: input.contextWindow, inputPrice: input.inputPrice, outputPrice: input.outputPrice, creditCostPer1kTokens: input.creditCostPer1kTokens, routingConfig, isEnabled: input.isEnabled, updatedAt: new Date() },
+    set: { identityId: identity.id, displayName: input.displayName, contextWindow: input.contextWindow, inputPrice: input.inputPrice, outputPrice: input.outputPrice, creditCostPer1kTokens: input.creditCostPer1kTokens, routingConfig, isEnabled: input.isEnabled, updatedAt: new Date() },
   }).returning())[0];
   if (!row) throw new Error("Unable to save model route");
   return row;

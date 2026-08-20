@@ -109,8 +109,19 @@ export const apiKeyProviderAccess = pgTable("api_key_provider_access", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, table => [uniqueIndex("api_key_provider_access_key_provider_idx").on(table.apiKeyId, table.providerId), index("api_key_provider_access_provider_idx").on(table.providerId)]);
 
+export const modelIdentities = pgTable("model_identities", {
+  id: serial("id").primaryKey(),
+  slug: varchar("slug", { length: 120 }).notNull(),
+  displayName: varchar("display_name", { length: 120 }).notNull(),
+  description: text("description"),
+  isEnabled: boolean("is_enabled").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [uniqueIndex("model_identities_slug_idx").on(table.slug)]);
+
 export const models = pgTable("models", {
   id: serial("id").primaryKey(),
+  identityId: integer("identity_id").references(() => modelIdentities.id, { onDelete: "set null" }),
   slug: varchar("slug", { length: 120 }).notNull(),
   displayName: varchar("display_name", { length: 120 }).notNull(),
   providerId: integer("provider_id").notNull().references(() => providers.id, { onDelete: "cascade" }),
@@ -123,7 +134,7 @@ export const models = pgTable("models", {
   isEnabled: boolean("is_enabled").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, table => [uniqueIndex("models_slug_provider_upstream_idx").on(table.slug, table.providerId, table.upstreamId), index("models_slug_priority_idx").on(table.slug), index("models_provider_idx").on(table.providerId)]);
+}, table => [uniqueIndex("models_slug_provider_upstream_idx").on(table.slug, table.providerId, table.upstreamId), index("models_slug_priority_idx").on(table.slug), index("models_identity_idx").on(table.identityId), index("models_provider_idx").on(table.providerId)]);
 
 export const autoRoutePolicies = pgTable("auto_route_policies", {
   id: serial("id").primaryKey(),

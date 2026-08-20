@@ -21,7 +21,7 @@ const nav: { label: string; path: string; icon: LucideIcon }[] = [
   { label: "Models", path: "/app/models", icon: Bot },
   { label: "API Keys", path: "/app/api-keys", icon: KeyRound },
   { label: "Analytics", path: "/app/analytics", icon: BarChart3 },
-  { label: "Admin", path: "/app/admin", icon: ServerCog },
+  { label: "Admin", path: "/ops", icon: ServerCog },
 ];
 
 const asArray = <T,>(value: unknown): T[] => Array.isArray(value) ? value as T[] : [];
