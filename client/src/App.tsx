@@ -38,7 +38,7 @@ function Router() {
   if (auth.isLoading && (authEntryRoute || location === "/app" || location === "/ops")) return <div className="grid min-h-screen place-items-center bg-[#090a09]"><div className="size-6 animate-spin rounded-full border-2 border-zinc-700 border-t-[#8ee53f]" /></div>;
   if (auth.data && location === "/ops") return <FounderOperationsApp user={auth.data} onLogout={() => { utils.auth.me.setData(undefined, null); utils.invalidate(); setLocation("/"); }} />;
   if (auth.data) return <KiwiDashboard user={auth.data} onLogout={() => { utils.auth.me.setData(undefined, null); utils.invalidate(); setLocation("/"); }} />;
-  if (location === "/" || authEntryRoute) return <LandingPage />;
+  if (location === "/") return <LandingPage />;
   return <AuthScreen initialMode={location === "/register" ? "register" : "login"} onAuthenticated={user => { utils.auth.me.setData(undefined, user); setLocation("/app"); }} />;
 }
 

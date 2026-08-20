@@ -302,3 +302,19 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 - [x] Add user controls for creating, editing, viewing, and revoking API-key policies without exposing raw secrets.
 - [x] Add regression tests for policy validation, expiry, credit limits, lifecycle actions, and collapsible starter behavior.
 - [x] Run TypeScript, full security regression, responsive verification, and save a deploy-ready checkpoint.
+
+## 2026-08-20 final authenticated QA gaps
+
+- [ ] Run an authenticated mobile production QA pass for Overview, API Keys, Models, Analytics, and Playground using a real standard-user session.
+- [ ] Publish checkpoint `d1563f1f` and verify the new API-key policy fields are live in production.
+- [ ] Execute a safe standard-user API-key lifecycle flow in production: create a policy-controlled key, inspect usage/policy metadata, then revoke it.
+- [ ] Execute a credentialed Kiwi Auto Model Playground completion in production and verify success and stable error behavior without exposing the key.
+- [ ] Exercise credits/coupons/referrals with safe test data or document a valid production-safety blocker instead of mutating a real account.
+
+## 2026-08-20 auth pages not opening
+
+- [x] Reproduce direct `/login`, `/register`, and auth callback entry behavior locally and in the published app.
+- [x] Trace auth-page routing, session-loading redirects, auth API responses, and client runtime errors.
+- [x] Fix the auth-page opening failure without breaking authenticated workspace redirects or Google callback behavior.
+- [x] Add regression coverage for direct auth routes, unauthenticated entry, authenticated redirect, and actionable auth errors.
+- [x] Run TypeScript, full auth regression, direct HTTP probes, responsive auth-page verification, and save a checkpoint.
