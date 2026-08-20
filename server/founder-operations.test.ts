@@ -19,25 +19,25 @@ describe("founder operations application contracts", () => {
 
   it("exposes the rebuilt command center and domain navigation", () => {
     const ops = read("client/src/components/FounderOperationsApp.tsx");
-    expect(ops).toContain("Kiwi Router Admin");
-    expect(ops).toContain('aria-label="Search admin sections"');
-    expect(ops).toContain("Provider connections");
-    expect(ops).toContain("Credentials & access");
-    expect(ops).toContain("Model catalog");
-    expect(ops).toContain("Routing & policy");
-    expect(ops).toContain("Accounts & incidents");
-    expect(ops).toContain("Credits & growth");
-    expect(ops).toContain("Diagnostics & audit");
-    expect(ops).toContain("Management control plane");
-    expect(ops).toContain("Metric label=\"Providers\"");
-    expect(ops).toContain("Metric label=\"Model routes\"");
+    expect(ops).toContain("Kiwi Router Control");
+    expect(ops).toContain('aria-label="Search control surfaces"');
+    expect(ops).toContain("Provider fabric");
+    expect(ops).toContain("Identity control");
+    expect(ops).toContain("Model registry");
+    expect(ops).toContain("Guardrail studio");
+    expect(ops).toContain("Identity control");
+    expect(ops).toContain("Credit programs");
+    expect(ops).toContain("Evidence room");
+    expect(ops).toContain("Founder control system");
+    expect(ops).toContain("Metric label=\"Provider fabric\"");
+    expect(ops).toContain("Metric label=\"Model registry\"");
   });
 
   it("keeps founder navigation usable while operations content scrolls", () => {
     const ops = read("client/src/components/FounderOperationsApp.tsx");
     expect(ops).toContain('lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)]');
     expect(ops).toContain("lg:overflow-y-auto");
-    expect(ops).toContain('aria-label="Founder admin sections"');
+    expect(ops).toContain('aria-label="Founder control surfaces"');
   });
 
   it("provides admin comfort and fast navigation controls", () => {
@@ -45,16 +45,16 @@ describe("founder operations application contracts", () => {
     expect(ops).toContain('kiwi-ops-theme');
     expect(ops).toContain('Switch to light mode');
     expect(ops).toContain('Switch to dark mode');
-    expect(ops).toContain('Search admin sections');
-    expect(ops).toContain('Loading admin control center');
-    expect(ops).toContain('filteredNav.map');
+    expect(ops).toContain('Find a control');
+    expect(ops).toContain('Loading control system');
+    expect(ops).toContain('filtered.map');
   });
 
   it("exposes the founder security observability dashboard with safe real-data queries", () => {
     const ops = read("client/src/components/FounderOperationsApp.tsx");
     const observability = read("client/src/components/FounderSecurityObservability.tsx");
     expect(ops).toContain("FounderSecurityObservability");
-    expect(ops).toContain('section === "observability"');
+    expect(ops).toContain('area === "evidence"');
     expect(observability).toContain("trpc.admin.apiKeys.useQuery");
     expect(observability).toContain("trpc.admin.auditEvents.useQuery");
     expect(observability).toContain("trpc.admin.requestLogs.useQuery");

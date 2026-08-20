@@ -146,6 +146,21 @@ export const appRouter = router({
   }),
   models: router({ list: protectedProcedure.query(() => listModels()) }),
   admin: router({
+    controlSnapshot: adminProcedure.query(async () => {
+      const [providers, models, users, apiKeys, events, requestLogs, limits, economy] = await Promise.all([
+        listProviders(), listModels(false), listUsers({ status: "all", limit: 500, offset: 0 }), listAdminApiKeys(),
+        listAdminSecurityEvents({ limit: 40 }), listAdminRequestLogs({ limit: 80 }), getRateLimitSettings(), getCreditEconomy(),
+      ]);
+      const providerRows = Array.isArray(providers) ? providers : [];
+      const modelRows = Array.isArray(models) ? models : [];
+      const userRows = Array.isArray(users) ? users : [];
+      const keyRows = Array.isArray(apiKeys) ? apiKeys : [];
+      const eventRows = Array.isArray(events) ? events : [];
+      const requestRows = Array.isArray(requestLogs) ? requestLogs : [];
+      const policySignals = eventRows.filter((event: any) => /(violation|denied|rate.?limit|quarantine|banned|failed|invalid|blocked|security)/i.test(String(event.eventType ?? event.type ?? ""))).length;
+      const errors = requestRows.filter((request: any) => request.status === "error" || Number(request.statusCode) >= 400).length;
+      return { providers: providerRows.length, enabledProviders: providerRows.filter((row: any) => row.isEnabled).length, models: modelRows.length, enabledModels: modelRows.filter((row: any) => row.model?.isEnabled ?? row.isEnabled).length, users: userRows.length, activeApiKeys: keyRows.filter((row: any) => row.isActive !== false && row.status !== "revoked").length, policySignals, requestLogs: requestRows.length, errorRate: requestRows.length ? Math.round((errors / requestRows.length) * 100) : 0, gatewayEnabled: Boolean((limits as any)?.globalApiEnabled), circulatingCredits: (economy as any)?.circulating ?? 0 };
+    }),
     economy: adminProcedure.query(() => getCreditEconomy()),
     users: adminProcedure.input(z.object({ search: z.string().trim().max(160).optional(), status: z.enum(["all", "active", "disabled"]).default("all"), limit: z.number().int().min(1).max(500).default(100), offset: z.number().int().min(0).default(0) }).default({ status: "all", limit: 100, offset: 0 })).query(({ input }) => listUsers(input)),
     userSessions: adminProcedure.input(z.object({ userId: z.number().int().positive() })).query(({ input }) => listAdminUserSessions(input.userId)),

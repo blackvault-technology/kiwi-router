@@ -408,4 +408,13 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 - [x] Improve API-key management with status indicators, hover states, and one-click copy interactions without exposing stored secrets.
 - [x] Add a founder activity log for recent user actions and security events with safe filtering and readable empty/error states.
 - [x] Add regression coverage and verify the new observability experience responsively.
-- [ ] Save a checkpoint for the founder security-observability update.
+- [x] Save a checkpoint for the founder security-observability update.
+
+## 2026-08-20 founder control-system replacement
+
+- [x] Audit the legacy nine-section frontend navigation, section state, workspace mapping, and backend procedure grouping.
+- [x] Define a new deep-control architecture with replacement navigation and capability ownership that does not reuse the legacy section model.
+- [x] Remove the legacy Overview, Providers, Credentials, Catalog, Routing, Accounts, Economy, Safety, and Audit section model from frontend and backend composition.
+- [x] Implement the new founder control system with real Neon-backed workflows, preserved role boundaries, and safe confirmations.
+- [x] Add regression coverage and verify the replacement navigation, backend boundaries, loading/error states, and responsive behavior.
+- [ ] Save a checkpoint for the new founder control-system replacement.
