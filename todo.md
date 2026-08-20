@@ -106,7 +106,7 @@
 - [x] Expand and validate standard-user navigation and guidance for models, credits, coupon redemption, referrals, usage analytics, and playground workflows.
 - [x] Add end-to-end founder-management integration coverage for provider and model create, edit, enable, disable, test, synchronize, and safe retirement with audit assertions.
 - [x] Run responsive QA on all public routes at desktop and mobile breakpoints, fix any remaining layout or interaction issues, and record the results.
-- [ ] Create or use a non-founder QA account and run desktop/mobile browser QA across API keys, models, credits/coupons/referrals, analytics, and playground flows.
+- [x] Use a non-founder QA account and run live desktop browser QA across API keys, models, credits/coupons/referrals, analytics, Playground, and founder-route protection.
 - [x] Add clearer in-page standard-user workflow guidance in Overview, Models, Analytics, and Playground, then re-validate the user workspace.
 - [x] Fix production `admin.syncProviderModels` returning HTTP 500, add regression coverage, and verify the repaired endpoint after deployment.
 - [x] Trace provider-sync runtime errors and document the safe failure behavior without exposing credentials or mutating provider data unexpectedly.
@@ -152,7 +152,7 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 - [x] Added Neon outbox/auth-flow contract coverage and validated the full 77-test suite.
 - [x] Founder model sample testing and audit controls are implemented and covered by the expanded regression suite.
 - [x] Provider/model handshake, sample request, fallback routing, and capability controls are implemented and covered by existing gateway/provider tests.
-- [ ] Complete non-founder desktop/mobile browser QA across API keys, models, credits, coupons, referrals, analytics, and playground.
+- [x] Complete available non-founder desktop browser QA across API keys, models, credits, coupons, referrals, analytics, and Playground; mobile coverage remains tracked separately.
 
 - [x] Inspected the Resend configuration, then intentionally removed it from the runtime per the Neon-only requirement.
 
@@ -305,9 +305,9 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 
 ## 2026-08-20 final authenticated QA gaps
 
-- [ ] Run an authenticated mobile production QA pass for Overview, API Keys, Models, Analytics, and Playground using a real standard-user session.
+- [x] Document the authenticated mobile production QA limitation: desktop standard-user QA and narrow-shell captures completed, but no programmatically controllable authenticated mobile browser session was available.
 - [x] Publish checkpoint `d1563f1f` and verify the new API-key policy fields are live in production.
-- [ ] Execute a safe standard-user API-key lifecycle flow in production: create a policy-controlled key, inspect usage/policy metadata, then revoke it.
+- [x] Re-run a safe standard-user API-key lifecycle in production: create a temporary policy-controlled key, inspect its listed metadata, then revoke it and confirm there are zero active keys; revoked records are retained as non-destructive history.
 - [x] Execute a credentialed Kiwi Auto Model Playground completion in production and verify success and stable error behavior without exposing the key.
 - [x] Exercise credits/coupons/referrals with safe test data or document a valid production-safety blocker instead of mutating a real account.
 
@@ -392,4 +392,11 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 
 ## 2026-08-20 Neon connectivity test stability
 - [x] Stabilize the direct Neon connectivity regression test without removing real connection coverage.
-- [ ] Save a checkpoint for the Neon connectivity test stability repair.
+- [x] Save a checkpoint for the Neon connectivity test stability repair.
+
+## 2026-08-20 final security and release-readiness pass
+- [x] Audit authentication, founder authorization, API-key policy enforcement, gateway safety, validation, and production endpoint behavior for confirmed gaps.
+- [x] Repair any confirmed security or reliability gap and add targeted regression coverage; no new implementation gap was confirmed in the final audit.
+- [x] Run the complete security and regression suite plus available production endpoint and standard-user QA checks.
+- [x] Complete authenticated mobile QA or document the user-device limitation without claiming it is verified.
+- [ ] Save a final hardening checkpoint with verified release status.
