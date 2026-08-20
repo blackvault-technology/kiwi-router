@@ -28,6 +28,14 @@ describe("founder control-center contract", () => {
     expect(consoleSource).toContain("for gateway routing?");
   });
 
+  it("keeps the simplified guided-first information architecture", () => {
+    expect(consoleSource).toContain("Recommended next move");
+    expect(consoleSource).toContain("Advanced gateway safety policies");
+    expect(consoleSource).toContain("Advanced provider inventory, credentials, and access");
+    expect(consoleSource).toContain("Advanced diagnostics and audit explorer");
+    expect(consoleSource).toContain("Use the guided provider flow for new connections");
+  });
+
   it("exposes audited founder-only procedures for safe connection tests and non-destructive archival", () => {
     expect(router).toContain("testProviderConnection: adminProcedure");
     expect(router).toContain("archiveProvider: adminProcedure");

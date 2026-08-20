@@ -318,3 +318,11 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 - [x] Fix the auth-page opening failure without breaking authenticated workspace redirects or Google callback behavior.
 - [x] Add regression coverage for direct auth routes, unauthenticated entry, authenticated redirect, and actionable auth errors.
 - [x] Run TypeScript, full auth regression, direct HTTP probes, responsive auth-page verification, and save a checkpoint.
+
+## 2026-08-20 founder dashboard simplification
+
+- [x] Audit the current `/ops` founder dashboard for navigation density, duplicated controls, unclear labels, and slow high-value workflows.
+- [x] Define a simpler operations information architecture with a focused home view, grouped domains, and guided provider/model/key workflows.
+- [x] Implement the redesigned founder dashboard with real Neon-backed data, clear loading/error/empty states, responsive layouts, and confirmation safeguards.
+- [x] Add founder-dashboard regression coverage for the simplified guided-first `/ops` experience.
+- [ ] Save a checkpoint for the simplified founder dashboard after TypeScript, tests, and visual verification pass.
