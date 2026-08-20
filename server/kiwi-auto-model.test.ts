@@ -61,5 +61,10 @@ describe("Kiwi Auto Model", () => {
     expect(ux).toContain("command palette");
     expect(ux).toContain("aria-live");
     expect(ux).toContain("lg:hidden");
+    expect(ux).toContain("data-ux-enhancements");
+    expect(ux).toContain('aria-atomic="true"');
+    expect(ux).toContain('role="listbox"');
+    expect(ux).toContain("Search workspace");
+    expect(ux).toContain("ArrowDown");
   });
 });
