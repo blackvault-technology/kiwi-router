@@ -47,6 +47,15 @@ describe("founder control-center contract", () => {
     expect(consoleSource).toContain("baseUrl: normalizedUrl");
   });
 
+  it("applies consistent validation across admin management domains", () => {
+    expect(consoleSource).toContain("Scope subject must be at least 2 characters.");
+    expect(consoleSource).toContain("Credential profile name must be at least 2 characters.");
+    expect(consoleSource).toContain("Enter a valid account email.");
+    expect(consoleSource).toContain("Coupon code must be 3–48 letters");
+    expect(consoleSource).toContain("Announcement must be at least 2 characters.");
+    expect(consoleSource).not.toContain("onError: error => toast.error(error.message)");
+  });
+
   it("keeps the simplified guided-first information architecture", () => {
     expect(consoleSource).toContain("Recommended next move");
     expect(consoleSource).toContain("Advanced gateway safety policies");

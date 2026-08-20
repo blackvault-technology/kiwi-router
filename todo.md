@@ -368,4 +368,12 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 - [x] Add friendly field-level validation for names, slugs, display names, and HTTPS base URLs.
 - [x] Normalize safe slug/name inputs and block invalid submissions before Neon mutations.
 - [x] Add regression coverage and verify provider/model create and edit validation flows.
-- [ ] Save a checkpoint for the validation repair.
+- [x] Save a checkpoint for the validation repair.
+
+## 2026-08-20 admin consistency pass
+
+- [x] Audit all founder admin mutations and forms for inconsistent validation, normalization, raw errors, loading states, and confirmation behavior.
+- [x] Apply shared friendly validation and readable error handling across provider, credential, model, route, policy, user, credits, coupons, referrals, announcements, and audit workflows.
+- [x] Add consistent loading, empty, error, success, confirmation, and recovery states across the admin panels.
+- [x] Add regression coverage and verify the complete admin experience at desktop and mobile breakpoints.
+- [ ] Save a checkpoint for the complete admin consistency pass.
