@@ -50,6 +50,21 @@ describe("founder operations application contracts", () => {
     expect(ops).toContain('filteredNav.map');
   });
 
+  it("exposes the founder security observability dashboard with safe real-data queries", () => {
+    const ops = read("client/src/components/FounderOperationsApp.tsx");
+    const observability = read("client/src/components/FounderSecurityObservability.tsx");
+    expect(ops).toContain("FounderSecurityObservability");
+    expect(ops).toContain('section === "observability"');
+    expect(observability).toContain("trpc.admin.apiKeys.useQuery");
+    expect(observability).toContain("trpc.admin.auditEvents.useQuery");
+    expect(observability).toContain("trpc.admin.requestLogs.useQuery");
+    expect(observability).toContain("Security observability");
+    expect(observability).toContain("Policy signals");
+    expect(observability).toContain("Recent activity");
+    expect(observability).toContain("Masked records only");
+    expect(observability).toContain("Copy masked identifier");
+  });
+
   it("uses a real model identity table and links existing provider routes", () => {
     const schema = read("drizzle/schema.ts");
     const migration = read("drizzle/migrations/0017_curly_magneto.sql");

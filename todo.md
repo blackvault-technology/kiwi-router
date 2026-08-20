@@ -400,3 +400,12 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 - [x] Run the complete security and regression suite plus available production endpoint and standard-user QA checks.
 - [x] Complete authenticated mobile QA or document the user-device limitation without claiming it is verified.
 - [x] Save a final hardening checkpoint with verified release status.
+
+## 2026-08-20 founder security observability
+
+- [x] Audit existing API-key, policy, usage, and audit-event data flows for safe founder-only read access.
+- [x] Add a visual founder dashboard for API-key usage, active policy violations, and recent security posture.
+- [x] Improve API-key management with status indicators, hover states, and one-click copy interactions without exposing stored secrets.
+- [x] Add a founder activity log for recent user actions and security events with safe filtering and readable empty/error states.
+- [x] Add regression coverage and verify the new observability experience responsively.
+- [ ] Save a checkpoint for the founder security-observability update.

@@ -1,6 +1,7 @@
 import { Activity, ArrowLeft, Bot, CheckCircle2, ChevronRight, Command, DatabaseZap, KeyRound, LayoutDashboard, LogOut, Moon, Radio, Search, ShieldCheck, Sun, UsersRound } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { DeepManagementWorkspace } from "@/components/DeepManagementWorkspace";
+import { FounderSecurityObservability } from "@/components/FounderSecurityObservability";
 import { UXEnhancements } from "@/components/UXEnhancements";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
@@ -82,7 +83,7 @@ export function FounderOperationsApp({ user, onLogout }: { user: SessionUser; on
         <div className="mb-6 flex flex-col gap-4 border-b border-white/8 pb-6 sm:flex-row sm:items-end sm:justify-between"><div><div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.18em] text-[#a5f763]"><Command className="size-3.5" />Admin / {active.shortLabel}</div><h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{active.label}</h1><p className="mt-2 max-w-2xl text-sm text-zinc-500">{active.detail}. Changes flow through the authenticated Neon control plane.</p></div><div className="flex items-center gap-2 rounded-xl border border-white/8 bg-white/[.025] px-3 py-2 text-xs text-zinc-500"><span className="size-2 rounded-full bg-[#8ee53f] shadow-[0_0_10px_rgba(142,229,63,.9)]" />Neon connected</div></div>
         {section === "overview" && <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Metric label="Providers" value={String(providerRows.length)} detail={`${providerRows.filter(row => row.isEnabled).length} enabled · ${providerRows.filter(row => row.isHealthy).length} healthy`} /><Metric label="Model routes" value={String(modelRows.length)} detail={`${modelRows.filter(row => row.model.isEnabled).length} live for routing`} /><Metric label="Users" value={compact(userRows.length)} detail="Accounts in the control plane" /><Metric label="Gateway" value={limits.data?.globalApiEnabled ? "Live" : "Paused"} detail={`${compact(economy.data?.circulating)} credits in circulation`} /></div>}
         <div className="mb-5 rounded-2xl border border-white/8 bg-white/[.02] p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[.16em] text-zinc-600">Management domain</p><p className="mt-1 text-sm text-zinc-200">{active.label}</p></div><p className="max-w-xl text-xs leading-5 text-zinc-500">This workspace keeps the matching controls together while retaining route history, audited mutations, and confirmation safeguards.</p></div></div>
-        {loading ? <AdminSkeleton /> : <DeepManagementWorkspace key={section} initialSection={workspaceSection} />}
+        {(section === "overview" || section === "observability") && <div className="mb-6"><FounderSecurityObservability /></div>}{loading ? <AdminSkeleton /> : <DeepManagementWorkspace key={section} initialSection={workspaceSection} />}
       </div></main>
     </div>
   </div>;
