@@ -384,4 +384,8 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 - [x] Rebuild provider, credential, model, route, policy, user, safety, credits, growth, diagnostics, and audit domains with clear high-frequency workflows and safe archival actions.
 - [x] Add loading, empty, error, confirmation, search, and mobile responsive states across the replacement management application.
 - [x] Update regression coverage and run shell-level desktop/mobile captures; authenticated founder visual QA remains session-dependent.
-- [ ] Save a checkpoint for the replacement deep admin application.
+- [x] Save a checkpoint for the replacement deep admin application.
+
+## 2026-08-20 management navigation role-filter repair
+- [x] Restore founder-only filtering for the renamed Management navigation entry and add regression coverage.
+- [ ] Save a checkpoint for the Management role-filter repair.

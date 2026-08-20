@@ -11,6 +11,7 @@ const database = fs.readFileSync(path.join(root, "server/db.ts"), "utf8");
 describe("deep management workspace contract", () => {
   it("keeps the founder console role-gated and outside the standard user navigation", () => {
     expect(dashboard).toContain('label: "Management", path: "/ops"');
+    expect(dashboard).toContain('item.label !== "Management" || user.role === "founder"');
     expect(dashboard).not.toContain('location === "/app/admin"');
     expect(dashboard).not.toContain('FounderControlCenter');
     expect(dashboard).toContain('if (user.role === "founder") return null;');

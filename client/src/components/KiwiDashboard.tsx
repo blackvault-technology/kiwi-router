@@ -96,7 +96,7 @@ export function KiwiDashboard({ user, onLogout }: { user: SessionUser; onLogout:
   const [location, setLocation] = useLocation();
   const [open, setOpen] = useState(false);
   const logout = trpc.auth.logout.useMutation({ onSuccess: onLogout });
-  const visible = nav.filter(item => item.label !== "Admin" || user.role === "founder");
+  const visible = nav.filter(item => item.label !== "Management" || user.role === "founder");
   const active = visible.find(item => item.path === location) ?? visible[0];
   const view = location === "/app/playground" ? <Playground /> : location === "/app/models" ? <Models /> : location === "/app/api-keys" ? <ApiKeys /> : location === "/app/analytics" ? <Analytics /> : <Overview user={user} />;
   const navigate = (path: string) => { setLocation(path); setOpen(false); };
