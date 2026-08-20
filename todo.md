@@ -333,4 +333,13 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 - [x] Make the founder sidebar scroll-safe and continuously usable while keeping navigation accessible on desktop and mobile.
 - [x] Simplify high-frequency admin navigation and control presentation without removing real Neon-backed operations.
 - [x] Add regression coverage and run TypeScript/tests; authenticated founder-shell visual verification remains session-dependent.
-- [ ] Save a checkpoint for the sidebar usability update.
+- [x] Save a checkpoint for the sidebar usability update.
+
+## 2026-08-20 admin comfort and navigation
+
+- [x] Audit the founder admin theme, content loading states, and sidebar section structure.
+- [x] Add a persistent light/dark theme toggle with readable admin tokens and reduced-motion compatibility.
+- [x] Add animated loading skeletons for the main admin content area and preserve actionable error/empty states.
+- [x] Add a quick sidebar search that filters operations sections and supports keyboard access.
+- [x] Add regression coverage, run TypeScript/tests, and verify desktop/mobile admin behavior.
+- [ ] Save a checkpoint for the admin comfort and navigation update.

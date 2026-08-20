@@ -182,3 +182,65 @@
 @keyframes provider-marquee {
   to { transform: translateX(-50%); }
 }
+
+@layer components {
+  .ops-theme-light {
+    background: #f3f7f0;
+    color: #182118;
+    color-scheme: light;
+  }
+
+  .ops-theme-light [class*="bg-[#080908]"],
+  .ops-theme-light [class*="bg-[#0b0c0b]"],
+  .ops-theme-light [class*="bg-[#101112]"],
+  .ops-theme-light [class*="bg-[#101211]"] {
+    background-color: #ffffff !important;
+  }
+
+  .ops-theme-light [class*="bg-black/"] {
+    background-color: rgba(225, 234, 221, 0.62) !important;
+  }
+
+  .ops-theme-light [class*="bg-white/"] {
+    background-color: rgba(225, 234, 221, 0.62) !important;
+  }
+
+  .ops-theme-light [class*="border-white/"] {
+    border-color: rgba(25, 54, 30, 0.14) !important;
+  }
+
+  .ops-theme-light [class*="text-zinc-"] {
+    color: #4f6050 !important;
+  }
+
+  .ops-theme-light [class*="text-zinc-100"],
+  .ops-theme-light [class*="text-zinc-200"],
+  .ops-theme-light [class*="text-zinc-300"] {
+    color: #182118 !important;
+  }
+
+  .ops-theme-light input,
+  .ops-theme-light textarea,
+  .ops-theme-light select,
+  .ops-theme-light .control-select {
+    background-color: #f7faf5 !important;
+    border-color: rgba(25, 54, 30, 0.16) !important;
+    color: #182118 !important;
+  }
+
+  .ops-theme-light input::placeholder,
+  .ops-theme-light textarea::placeholder {
+    color: #7c8d7d !important;
+  }
+
+  .ops-theme-light header {
+    background: rgba(243, 247, 240, 0.94) !important;
+    border-color: rgba(25, 54, 30, 0.14) !important;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ops-shell .animate-pulse {
+      animation: none;
+    }
+  }
+}
