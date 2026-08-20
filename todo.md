@@ -399,4 +399,4 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 - [x] Repair any confirmed security or reliability gap and add targeted regression coverage; no new implementation gap was confirmed in the final audit.
 - [x] Run the complete security and regression suite plus available production endpoint and standard-user QA checks.
 - [x] Complete authenticated mobile QA or document the user-device limitation without claiming it is verified.
-- [ ] Save a final hardening checkpoint with verified release status.
+- [x] Save a final hardening checkpoint with verified release status.
