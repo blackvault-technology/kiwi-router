@@ -17,6 +17,13 @@ describe("founder operations application contracts", () => {
     expect(ops).not.toContain("<KiwiDashboard");
   });
 
+  it("keeps founder navigation usable while operations content scrolls", () => {
+    const ops = read("client/src/components/FounderOperationsApp.tsx");
+    expect(ops).toContain('lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)]');
+    expect(ops).toContain("lg:overflow-y-auto");
+    expect(ops).toContain('aria-label="Founder operations"');
+  });
+
   it("uses a real model identity table and links existing provider routes", () => {
     const schema = read("drizzle/schema.ts");
     const migration = read("drizzle/migrations/0017_curly_magneto.sql");

@@ -306,10 +306,10 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 ## 2026-08-20 final authenticated QA gaps
 
 - [ ] Run an authenticated mobile production QA pass for Overview, API Keys, Models, Analytics, and Playground using a real standard-user session.
-- [ ] Publish checkpoint `d1563f1f` and verify the new API-key policy fields are live in production.
+- [x] Publish checkpoint `d1563f1f` and verify the new API-key policy fields are live in production.
 - [ ] Execute a safe standard-user API-key lifecycle flow in production: create a policy-controlled key, inspect usage/policy metadata, then revoke it.
-- [ ] Execute a credentialed Kiwi Auto Model Playground completion in production and verify success and stable error behavior without exposing the key.
-- [ ] Exercise credits/coupons/referrals with safe test data or document a valid production-safety blocker instead of mutating a real account.
+- [x] Execute a credentialed Kiwi Auto Model Playground completion in production and verify success and stable error behavior without exposing the key.
+- [x] Exercise credits/coupons/referrals with safe test data or document a valid production-safety blocker instead of mutating a real account.
 
 ## 2026-08-20 auth pages not opening
 
@@ -325,4 +325,12 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 - [x] Define a simpler operations information architecture with a focused home view, grouped domains, and guided provider/model/key workflows.
 - [x] Implement the redesigned founder dashboard with real Neon-backed data, clear loading/error/empty states, responsive layouts, and confirmation safeguards.
 - [x] Add founder-dashboard regression coverage for the simplified guided-first `/ops` experience.
-- [ ] Save a checkpoint for the simplified founder dashboard after TypeScript, tests, and visual verification pass.
+- [x] Save a checkpoint for the simplified founder dashboard after TypeScript, tests, and visual verification pass.
+
+## 2026-08-20 founder sidebar usability
+
+- [x] Audit the founder sidebar scrolling, sticky behavior, mobile navigation, and duplicated shell controls.
+- [x] Make the founder sidebar scroll-safe and continuously usable while keeping navigation accessible on desktop and mobile.
+- [x] Simplify high-frequency admin navigation and control presentation without removing real Neon-backed operations.
+- [x] Add regression coverage and run TypeScript/tests; authenticated founder-shell visual verification remains session-dependent.
+- [ ] Save a checkpoint for the sidebar usability update.
