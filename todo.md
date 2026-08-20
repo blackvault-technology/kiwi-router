@@ -292,3 +292,13 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 - [x] Add operational upgrades for bulk actions, filters, saved views, route simulation, credential rotation, health history, audit inspection, safe confirmations, and degraded-state recovery.
 - [x] Add regression tests for grouped model identity routing, founder permissions, real-data mutations, route history, audit events, and operations-app rendering.
 - [x] Run the complete TypeScript and regression suite, responsive verification, and save a deploy-ready checkpoint.
+
+## 2026-08-20 collapsible workspace and API-key policies
+
+- [x] Make the user workspace starter collapsible with persisted local preference and accessible controls.
+- [x] Audit API-key schema, creation, gateway authorization, credit settlement, and current user API-key UI.
+- [x] Add Neon-backed API-key expiry, per-key credit limit, optional request/token limits, and policy status fields with safe migration.
+- [x] Enforce API-key expiry and credit policies server-side before upstream requests and during credit settlement.
+- [x] Add user controls for creating, editing, viewing, and revoking API-key policies without exposing raw secrets.
+- [x] Add regression tests for policy validation, expiry, credit limits, lifecycle actions, and collapsible starter behavior.
+- [x] Run TypeScript, full security regression, responsive verification, and save a deploy-ready checkpoint.

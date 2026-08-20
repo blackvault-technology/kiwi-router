@@ -1,0 +1,21 @@
+import { ChevronDown, ChevronUp, KeyRound, MessageSquareText, PanelTop } from "lucide-react";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+
+type SessionUser = { role: "user" | "admin" | "founder"; emailVerified: boolean };
+
+export function CollapsibleWorkspaceStarter({ user, onNavigate, activePath = "/app" }: { user: SessionUser; onNavigate: (path: string) => void; activePath?: string }) {
+  const [expanded, setExpanded] = useState(() => { try { return window.localStorage.getItem("kiwi.workspace-starter") !== "collapsed"; } catch { return true; } });
+  if (user.role === "founder") return null;
+  const shortcuts = [
+    { label: "API keys", detail: "Create scoped access", path: "/app/api-keys" },
+    { label: "Models", detail: "Browse enabled routes", path: "/app/models" },
+    { label: "Credits & coupons", detail: "Top up or redeem", path: "/app" },
+    { label: "Referrals", detail: "Invite and claim", path: "/app" },
+    { label: "Usage", detail: "Review gateway activity", path: "/app/analytics" },
+    { label: "Playground", detail: "Test a completion", path: "/app/playground" },
+  ];
+  const context: Record<string, string> = { "/app": "Redeem a coupon or top up credits, then use your referral link to invite your team.", "/app/models": "Choose an enabled route before opening the Playground; its credit cost is displayed per 1k tokens.", "/app/api-keys": "Create a policy-controlled key with expiry and usage limits, then store it securely.", "/app/analytics": "Review request totals, tokens, latency, and errors after traffic begins routing through your Kiwi key.", "/app/playground": "Choose a model and use a raw Kiwi key to send a test through the production gateway." };
+  const toggle = () => { const next = !expanded; setExpanded(next); try { window.localStorage.setItem("kiwi.workspace-starter", next ? "expanded" : "collapsed"); } catch { /* preference storage is optional */ } };
+  return <section className="mb-5 rounded-2xl border border-[#8ee53f]/15 bg-gradient-to-r from-[#8ee53f]/[.08] via-[#101112] to-[#101112] p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className="flex min-w-0 items-center gap-3"><div className="grid size-9 shrink-0 place-items-center rounded-xl bg-[#8ee53f]/10 text-[#b5ff77]"><PanelTop className="size-4" /></div><div className="min-w-0"><p className="text-[10px] font-semibold uppercase tracking-[.18em] text-[#a5f763]">Your developer workspace</p><p className="mt-1 truncate text-sm text-zinc-200">{expanded ? "Create a key, select a route, and test your gateway." : "Quick actions for your Kiwi developer workspace."}</p><p className="mt-1 text-xs text-zinc-500">{user.emailVerified ? "Email verified · gateway access ready" : "Verify your email to enable gateway access"}</p></div></div><div className="flex flex-wrap gap-2"><Button size="sm" onClick={() => onNavigate("/app/api-keys")} className="bg-[#8ee53f] text-black hover:bg-[#a5f763]"><KeyRound className="mr-1.5 size-3.5" />Create API key</Button><Button size="sm" variant="outline" onClick={() => onNavigate("/app/playground")} className="border-white/10"><MessageSquareText className="mr-1.5 size-3.5" />Test gateway</Button><Button size="sm" variant="ghost" onClick={toggle} aria-expanded={expanded} aria-controls="workspace-starter-details" className="text-zinc-400">{expanded ? <ChevronUp className="mr-1.5 size-4" /> : <ChevronDown className="mr-1.5 size-4" />}{expanded ? "Collapse" : "Expand"}</Button></div></div>{expanded && <div id="workspace-starter-details" className="mt-3"><div className="rounded-xl border border-white/8 bg-black/15 p-3"><p className="text-[10px] font-semibold uppercase tracking-[.16em] text-zinc-500">Next step for this view</p><p className="mt-1 text-sm text-zinc-300">{context[activePath] ?? context["/app"]}</p></div><div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{shortcuts.map(shortcut => <button key={shortcut.label} onClick={() => onNavigate(shortcut.path)} className="rounded-xl border border-white/8 bg-black/15 p-3 text-left transition hover:border-[#8ee53f]/25 hover:bg-[#8ee53f]/[.04]"><p className="text-sm font-medium text-zinc-200">{shortcut.label}</p><p className="mt-1 text-xs text-zinc-500">{shortcut.detail}</p></button>)}</div></div>}</section>;
+}

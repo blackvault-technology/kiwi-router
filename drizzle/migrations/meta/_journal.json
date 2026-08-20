@@ -127,6 +127,13 @@
       "when": 1787201309689,
       "tag": "0017_curly_magneto",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1787202612333,
+      "tag": "0018_magenta_ultimates",
+      "breakpoints": true
     }
   ]
 }

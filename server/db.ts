@@ -126,15 +126,39 @@ export async function clearLoginFailures(userId: number) {
   await getDb().update(users).set({ failedLoginCount: 0, lockedUntil: null, updatedAt: new Date() }).where(eq(users.id, userId));
 }
 
-export async function createApiKey(userId: number, name: string) {
+export type ApiKeyPolicyInput = { expiresAt?: Date | null; creditLimit?: string | null; requestLimitPerMinute?: number | null; tokenLimitPerMinute?: number | null };
+
+export async function createApiKey(userId: number, name: string, policy: ApiKeyPolicyInput = {}) {
   const plainKey = `kiwi_sk_${randomBytes(24).toString("base64url")}`;
-  const saved = (await getDb().insert(apiKeys).values({ userId, name, keyPrefix: plainKey.slice(0, 16), keyHash: hashApiKey(plainKey), lastFour: plainKey.slice(-4) }).returning())[0]!;
+  const saved = (await getDb().insert(apiKeys).values({ userId, name, keyPrefix: plainKey.slice(0, 16), keyHash: hashApiKey(plainKey), lastFour: plainKey.slice(-4), ...policy }).returning())[0]!;
   return { ...saved, plainKey };
 }
 
 export async function listApiKeys(userId: number) {
-  return getDb().select({ id: apiKeys.id, name: apiKeys.name, keyPrefix: apiKeys.keyPrefix, lastFour: apiKeys.lastFour, isActive: apiKeys.isActive, lastUsedAt: apiKeys.lastUsedAt, expiresAt: apiKeys.expiresAt, revokedAt: apiKeys.revokedAt, createdAt: apiKeys.createdAt })
+  return getDb().select({ id: apiKeys.id, name: apiKeys.name, keyPrefix: apiKeys.keyPrefix, lastFour: apiKeys.lastFour, isActive: apiKeys.isActive, lastUsedAt: apiKeys.lastUsedAt, expiresAt: apiKeys.expiresAt, creditLimit: apiKeys.creditLimit, requestLimitPerMinute: apiKeys.requestLimitPerMinute, tokenLimitPerMinute: apiKeys.tokenLimitPerMinute, revokedAt: apiKeys.revokedAt, createdAt: apiKeys.createdAt })
     .from(apiKeys).where(eq(apiKeys.userId, userId)).orderBy(desc(apiKeys.createdAt));
+}
+
+export async function updateApiKeyPolicy(userId: number, id: string, policy: ApiKeyPolicyInput & { name?: string }) {
+  const result = await getDb().update(apiKeys).set({ ...policy, ...(policy.name ? { name: policy.name } : {}) }).where(and(eq(apiKeys.id, id), eq(apiKeys.userId, userId), eq(apiKeys.isActive, true))).returning({ id: apiKeys.id, name: apiKeys.name, expiresAt: apiKeys.expiresAt, creditLimit: apiKeys.creditLimit, requestLimitPerMinute: apiKeys.requestLimitPerMinute, tokenLimitPerMinute: apiKeys.tokenLimitPerMinute });
+  return result[0] ?? null;
+}
+
+export async function getApiKeyPolicyUsage(userId: number, id: string) {
+  const result = await getDb().execute(sql`SELECT COALESCE(SUM(credits_deducted), 0)::numeric AS "creditUsed", COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '1 minute')::int AS "requestsLastMinute", COALESCE(SUM(input_tokens + output_tokens) FILTER (WHERE created_at >= NOW() - INTERVAL '1 minute'), 0)::int AS "tokensLastMinute" FROM request_logs WHERE user_id = ${userId} AND api_key_id = ${id} AND status = 'success'`);
+  return (result as unknown as Array<{ creditUsed?: string; requestsLastMinute?: number; tokensLastMinute?: number }>)[0] ?? { creditUsed: "0", requestsLastMinute: 0, tokensLastMinute: 0 };
+}
+
+export async function checkApiKeyPolicy(apiKeyId: string, userId: number) {
+  const key = (await getDb().select({ creditLimit: apiKeys.creditLimit, requestLimitPerMinute: apiKeys.requestLimitPerMinute, tokenLimitPerMinute: apiKeys.tokenLimitPerMinute, expiresAt: apiKeys.expiresAt }).from(apiKeys).where(and(eq(apiKeys.id, apiKeyId), eq(apiKeys.userId, userId))).limit(1))[0];
+  if (!key) return { allowed: false as const, reason: "invalid_api_key_policy" };
+  if (key.expiresAt && key.expiresAt.getTime() <= Date.now()) return { allowed: false as const, reason: "api_key_expired" };
+  const usage = await getApiKeyPolicyUsage(userId, apiKeyId);
+  const creditUsed = Number(usage.creditUsed ?? 0);
+  if (key.creditLimit !== null && creditUsed >= Number(key.creditLimit)) return { allowed: false as const, reason: "api_key_credit_limit", usage, policy: key };
+  if (key.requestLimitPerMinute !== null && Number(usage.requestsLastMinute ?? 0) >= key.requestLimitPerMinute) return { allowed: false as const, reason: "api_key_request_limit", usage, policy: key };
+  if (key.tokenLimitPerMinute !== null && Number(usage.tokensLastMinute ?? 0) >= key.tokenLimitPerMinute) return { allowed: false as const, reason: "api_key_token_limit", usage, policy: key };
+  return { allowed: true as const, usage, policy: key };
 }
 
 export async function revokeApiKey(userId: number, id: string) {

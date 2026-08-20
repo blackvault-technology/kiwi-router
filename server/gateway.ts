@@ -1,7 +1,7 @@
 import { Readable, Transform } from "node:stream";
 import type { Express, Request, Response } from "express";
 import { decryptSecret } from "./crypto";
-import { checkRateLimit, getApiKeyOwner, getGatewayRoutes, getProviderRuntimeCredential, getRateLimitSettings, isAccessBanned, listModels, listProviders, logRequest } from "./db";
+import { checkApiKeyPolicy, checkRateLimit, getApiKeyOwner, getGatewayRoutes, getProviderRuntimeCredential, getRateLimitSettings, isAccessBanned, listModels, listProviders, logRequest } from "./db";
 import { canSpendCredits, spendCredits } from "./credits";
 import { getRequestIp } from "./founder";
 import { hashApiKey } from "./auth";
@@ -237,6 +237,8 @@ export function registerGateway(app: Express) {
     if (!apiKey) return respondError(res, 401, "Missing API key", "invalid_api_key");
     const owner = await getApiKeyOwner(apiKey);
     if (!owner) return respondError(res, 401, "Invalid or revoked API key", "invalid_api_key");
+    const policy = await checkApiKeyPolicy(owner.apiKey.id, owner.user.id);
+    if (!policy.allowed) return respondError(res, policy.reason === "api_key_credit_limit" ? 402 : 429, policy.reason === "api_key_credit_limit" ? "This API key has reached its credit limit." : "This API key has reached its configured usage limit.", policy.reason);
     const ipAddress = req.ip || getRequestIp(req.headers);
     const [banned, rate] = await Promise.all([isAccessBanned(owner.user.id, owner.user.email, ipAddress), checkRateLimit(owner.user.id, ipAddress)]);
     if (banned) return respondError(res, 403, "Access is blocked", "access_banned");
@@ -251,6 +253,8 @@ export function registerGateway(app: Express) {
     if (!apiKey) return respondError(res, 401, "Missing API key", "invalid_api_key");
     const owner = await getApiKeyOwner(apiKey);
     if (!owner) return respondError(res, 401, "Invalid or revoked API key", "invalid_api_key");
+    const policy = await checkApiKeyPolicy(owner.apiKey.id, owner.user.id);
+    if (!policy.allowed) return respondError(res, policy.reason === "api_key_credit_limit" ? 402 : 429, policy.reason === "api_key_credit_limit" ? "This API key has reached its credit limit." : "This API key has reached its configured usage limit.", policy.reason);
     const ipAddress = req.ip || getRequestIp(req.headers);
     const userAgentHash = req.header("user-agent") ? hashApiKey(req.header("user-agent")!) : undefined;
     const parsed = completionSchema.safeParse(req.body);

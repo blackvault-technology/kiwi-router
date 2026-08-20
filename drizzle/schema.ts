@@ -56,6 +56,9 @@ export const apiKeys = pgTable("api_keys", {
   isActive: boolean("is_active").notNull().default(true),
   lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
   expiresAt: timestamp("expires_at", { withTimezone: true }),
+  creditLimit: numeric("credit_limit", { precision: 14, scale: 3 }),
+  requestLimitPerMinute: integer("request_limit_per_minute"),
+  tokenLimitPerMinute: integer("token_limit_per_minute"),
   revokedAt: timestamp("revoked_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, table => [uniqueIndex("api_keys_hash_idx").on(table.keyHash), index("api_keys_user_idx").on(table.userId)]);
