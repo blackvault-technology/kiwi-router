@@ -360,4 +360,12 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 - [x] Recreate provider, credential, model identity, route, policy, user, safety, growth, and audit workflows using existing real Neon-backed procedures and safe confirmations.
 - [x] Add fast loading, empty, error, success, confirmation, and responsive states throughout the rebuilt admin system.
 - [x] Add regression coverage and verify the rebuilt founder admin system at desktop and mobile breakpoints.
-- [ ] Save a checkpoint for the rebuilt founder admin system.
+- [x] Save a checkpoint for the rebuilt founder admin system.
+
+## 2026-08-20 admin validation repair
+
+- [x] Trace provider/model schemas, form submissions, normalization, and raw validation error handling.
+- [x] Add friendly field-level validation for names, slugs, display names, and HTTPS base URLs.
+- [x] Normalize safe slug/name inputs and block invalid submissions before Neon mutations.
+- [x] Add regression coverage and verify provider/model create and edit validation flows.
+- [ ] Save a checkpoint for the validation repair.

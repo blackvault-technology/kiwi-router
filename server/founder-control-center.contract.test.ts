@@ -37,6 +37,16 @@ describe("founder control-center contract", () => {
     expect(consoleSource).toContain("No model routes match this filter.");
   });
 
+  it("prevents invalid provider and model mutations with friendly guidance", () => {
+    expect(consoleSource).toContain("normalizeBaseUrl");
+    expect(consoleSource).toContain("providerValidation");
+    expect(consoleSource).toContain("modelValidation");
+    expect(consoleSource).toContain("Provider name must be at least 2 characters.");
+    expect(consoleSource).toContain("Enter a valid provider URL");
+    expect(consoleSource).toContain("validationMessage");
+    expect(consoleSource).toContain("baseUrl: normalizedUrl");
+  });
+
   it("keeps the simplified guided-first information architecture", () => {
     expect(consoleSource).toContain("Recommended next move");
     expect(consoleSource).toContain("Advanced gateway safety policies");

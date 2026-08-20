@@ -11,6 +11,15 @@ describe("Mini OmniRoute founder setup", () => {
     expect(wizard).toContain("Credentials are encrypted and never shown again.");
   });
 
+  it("guards provider and route inputs with friendly normalized validation", () => {
+    expect(wizard).toContain("normalizeBaseUrl");
+    expect(wizard).toContain("providerErrors");
+    expect(wizard).toContain("routeErrors");
+    expect(wizard).toContain("validationMessage");
+    expect(wizard).toContain("Provider name must be at least 2 characters.");
+    expect(wizard).toContain("Base URL must use HTTPS.");
+  });
+
   it("connects provider, credential validation, discovery, route testing, and publish mutations", () => {
     expect(wizard).toContain("trpc.admin.saveProvider.useMutation");
     expect(wizard).toContain("trpc.admin.testProviderConnection.useMutation");
