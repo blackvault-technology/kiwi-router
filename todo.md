@@ -351,4 +351,13 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 - [x] Improve model and provider management so founders can add, edit, test, enable, disable, synchronize, archive, and inspect routes quickly using real Neon-backed procedures.
 - [x] Improve credential, routing, policy, user, growth, and audit management presentation without removing existing controls or safety confirmations.
 - [x] Add regression coverage and verify loading, empty, error, confirmation, and responsive states for the revamped admin panel.
-- [ ] Save a checkpoint for the full founder admin revamp.
+- [x] Save a checkpoint for the full founder admin revamp.
+
+## 2026-08-20 founder admin system rebuild
+
+- [x] Audit the existing founder admin shell, navigation, command center, and management panels for duplication, slow paths, and unclear ownership.
+- [x] Define and implement a replacement admin information architecture with a focused command center, persistent navigation, global search, and clear domain boundaries.
+- [x] Recreate provider, credential, model identity, route, policy, user, safety, growth, and audit workflows using existing real Neon-backed procedures and safe confirmations.
+- [x] Add fast loading, empty, error, success, confirmation, and responsive states throughout the rebuilt admin system.
+- [x] Add regression coverage and verify the rebuilt founder admin system at desktop and mobile breakpoints.
+- [ ] Save a checkpoint for the rebuilt founder admin system.

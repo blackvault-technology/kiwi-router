@@ -17,11 +17,24 @@ describe("founder operations application contracts", () => {
     expect(ops).not.toContain("<KiwiDashboard");
   });
 
+  it("exposes the rebuilt command center and domain navigation", () => {
+    const ops = read("client/src/components/FounderOperationsApp.tsx");
+    expect(ops).toContain("Kiwi Router Admin");
+    expect(ops).toContain('aria-label="Search admin sections"');
+    expect(ops).toContain("Providers & keys");
+    expect(ops).toContain("Models & routes");
+    expect(ops).toContain("Users & safety");
+    expect(ops).toContain("Credits & growth");
+    expect(ops).toContain("Control plane ready");
+    expect(ops).toContain("Metric label=\"Providers\"");
+    expect(ops).toContain("Metric label=\"Model routes\"");
+  });
+
   it("keeps founder navigation usable while operations content scrolls", () => {
     const ops = read("client/src/components/FounderOperationsApp.tsx");
     expect(ops).toContain('lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)]');
     expect(ops).toContain("lg:overflow-y-auto");
-    expect(ops).toContain('aria-label="Founder operations"');
+    expect(ops).toContain('aria-label="Founder admin sections"');
   });
 
   it("provides admin comfort and fast navigation controls", () => {
@@ -29,9 +42,9 @@ describe("founder operations application contracts", () => {
     expect(ops).toContain('kiwi-ops-theme');
     expect(ops).toContain('Switch to light mode');
     expect(ops).toContain('Switch to dark mode');
-    expect(ops).toContain('Search founder operations sections');
-    expect(ops).toContain('Loading operations content');
-    expect(ops).toContain('filteredSections.map');
+    expect(ops).toContain('Search admin sections');
+    expect(ops).toContain('Loading admin control center');
+    expect(ops).toContain('filteredNav.map');
   });
 
   it("uses a real model identity table and links existing provider routes", () => {
