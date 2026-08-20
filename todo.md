@@ -388,4 +388,8 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 
 ## 2026-08-20 management navigation role-filter repair
 - [x] Restore founder-only filtering for the renamed Management navigation entry and add regression coverage.
-- [ ] Save a checkpoint for the Management role-filter repair.
+- [x] Save a checkpoint for the Management role-filter repair.
+
+## 2026-08-20 Neon connectivity test stability
+- [x] Stabilize the direct Neon connectivity regression test without removing real connection coverage.
+- [ ] Save a checkpoint for the Neon connectivity test stability repair.
