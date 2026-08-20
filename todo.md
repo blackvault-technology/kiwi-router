@@ -376,4 +376,12 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 - [x] Apply shared friendly validation and readable error handling across provider, credential, model, route, policy, user, credits, coupons, referrals, announcements, and audit workflows.
 - [x] Add consistent loading, empty, error, success, confirmation, and recovery states across the admin panels.
 - [x] Add regression coverage and verify the complete admin experience at desktop and mobile breakpoints.
-- [ ] Save a checkpoint for the complete admin consistency pass.
+- [x] Save a checkpoint for the complete admin consistency pass.
+
+## 2026-08-20 replacement deep admin application
+- [x] Audit all legacy founder-admin entry points and map every real Neon-backed management capability that must be preserved.
+- [x] Replace the old admin shell and composition with a single domain-based management application and remove legacy in-workspace founder-admin routes.
+- [x] Rebuild provider, credential, model, route, policy, user, safety, credits, growth, diagnostics, and audit domains with clear high-frequency workflows and safe archival actions.
+- [x] Add loading, empty, error, confirmation, search, and mobile responsive states across the replacement management application.
+- [x] Update regression coverage and run shell-level desktop/mobile captures; authenticated founder visual QA remains session-dependent.
+- [ ] Save a checkpoint for the replacement deep admin application.

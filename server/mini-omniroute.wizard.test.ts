@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const wizard = readFileSync(new URL("../client/src/components/MiniOmniRouteWizard.tsx", import.meta.url), "utf8");
-const founder = readFileSync(new URL("../client/src/components/FounderControlCenter.tsx", import.meta.url), "utf8");
+const founder = readFileSync(new URL("../client/src/components/DeepManagementWorkspace.tsx", import.meta.url), "utf8");
 
 describe("Mini OmniRoute founder setup", () => {
   it("exposes the guided five-step setup sequence", () => {

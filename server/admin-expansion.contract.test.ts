@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 const schema = readFileSync(new URL("../drizzle/schema.ts", import.meta.url), "utf8");
 const db = readFileSync(new URL("./db.ts", import.meta.url), "utf8");
 const router = readFileSync(new URL("./routers.ts", import.meta.url), "utf8");
-const ui = readFileSync(new URL("../client/src/components/FounderControlCenter.tsx", import.meta.url), "utf8");
+const ui = readFileSync(new URL("../client/src/components/DeepManagementWorkspace.tsx", import.meta.url), "utf8");
 
 describe("deep founder console contracts", () => {
   it("defines provider credentials, health history, and provider-scoped key access", () => {
@@ -69,4 +69,3 @@ describe("deep founder console contracts", () => {
     expect(ui).toContain("Quarantine");
   });
 });
-

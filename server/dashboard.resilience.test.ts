@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const dashboardSource = readFileSync(new URL("../client/src/components/KiwiDashboard.tsx", import.meta.url), "utf8");
+const managementSource = readFileSync(new URL("../client/src/components/DeepManagementWorkspace.tsx", import.meta.url), "utf8");
 const appSource = readFileSync(new URL("../client/src/App.tsx", import.meta.url), "utf8");
 
 describe("dashboard resilience and referral UX", () => {
@@ -21,7 +22,7 @@ describe("dashboard resilience and referral UX", () => {
   it("keeps coupon redemption, referral sharing, and founder coupon controls available in the interface", () => {
     expect(dashboardSource).toContain("trpc.coupons.redeem.useMutation");
     expect(dashboardSource).toContain("trpc.referrals.stats.useQuery");
-    expect(dashboardSource).toContain("trpc.admin.createCoupon.useMutation");
-    expect(dashboardSource).toContain("trpc.admin.deactivateCoupon.useMutation");
+    expect(managementSource).toContain("trpc.admin.createCoupon.useMutation");
+    expect(managementSource).toContain("trpc.admin.deactivateCoupon.useMutation");
   });
 });

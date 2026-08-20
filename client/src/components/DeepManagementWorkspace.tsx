@@ -117,7 +117,7 @@ const sectionCopy: Record<Section, { eyebrow: string; title: string; detail: str
   growth: { eyebrow: "Programs & communications", title: "Growth", detail: "Manage credits, coupons, referrals, and in-workspace announcements." },
 };
 
-export function FounderControlCenter({ initialSection = "operations" }: { initialSection?: Section }) {
+export function DeepManagementWorkspace({ initialSection = "operations" }: { initialSection?: Section }) {
   const utils = trpc.useUtils();
   const [section, setSection] = useState<Section>(initialSection);
   const [editingProvider, setEditingProvider] = useState<number | null>(null);

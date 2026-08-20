@@ -4,15 +4,15 @@ import { describe, expect, it } from "vitest";
 
 const root = path.resolve(import.meta.dirname, "..");
 const dashboard = fs.readFileSync(path.join(root, "client/src/components/KiwiDashboard.tsx"), "utf8");
-const consoleSource = fs.readFileSync(path.join(root, "client/src/components/FounderControlCenter.tsx"), "utf8");
+const consoleSource = fs.readFileSync(path.join(root, "client/src/components/DeepManagementWorkspace.tsx"), "utf8");
 const router = fs.readFileSync(path.join(root, "server/routers.ts"), "utf8");
 const database = fs.readFileSync(path.join(root, "server/db.ts"), "utf8");
 
-describe("founder control-center contract", () => {
+describe("deep management workspace contract", () => {
   it("keeps the founder console role-gated and outside the standard user navigation", () => {
-    expect(dashboard).toContain('item.label !== "Admin" || user.role === "founder"');
-    expect(dashboard).toContain('location === "/app/admin" && user.role === "founder" ? <FounderControlCenter />');
-    expect(dashboard).toContain('item.label === "Admin" ? "Founder Console" : item.label');
+    expect(dashboard).toContain('label: "Management", path: "/ops"');
+    expect(dashboard).not.toContain('location === "/app/admin"');
+    expect(dashboard).not.toContain('FounderControlCenter');
     expect(dashboard).toContain('if (user.role === "founder") return null;');
     expect(dashboard).toContain("Your developer workspace");
     expect(dashboard).toContain('onNavigate("/app/api-keys")');

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 
 const dbSource = readFileSync(new URL("./db.ts", import.meta.url), "utf8");
 const routerSource = readFileSync(new URL("./routers.ts", import.meta.url), "utf8");
-const uiSource = readFileSync(new URL("../client/src/components/FounderControlCenter.tsx", import.meta.url), "utf8");
+const uiSource = readFileSync(new URL("../client/src/components/DeepManagementWorkspace.tsx", import.meta.url), "utf8");
 
 describe("provider model sync safety contract", () => {
   it("bounds upstream discovery and returns structured failure metadata", () => {
@@ -27,4 +27,3 @@ describe("provider model sync safety contract", () => {
     expect(uiSource).toContain("toast.error(result.detail)");
   });
 });
-

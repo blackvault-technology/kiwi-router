@@ -21,11 +21,14 @@ describe("founder operations application contracts", () => {
     const ops = read("client/src/components/FounderOperationsApp.tsx");
     expect(ops).toContain("Kiwi Router Admin");
     expect(ops).toContain('aria-label="Search admin sections"');
-    expect(ops).toContain("Providers & keys");
-    expect(ops).toContain("Models & routes");
-    expect(ops).toContain("Users & safety");
+    expect(ops).toContain("Provider connections");
+    expect(ops).toContain("Credentials & access");
+    expect(ops).toContain("Model catalog");
+    expect(ops).toContain("Routing & policy");
+    expect(ops).toContain("Accounts & incidents");
     expect(ops).toContain("Credits & growth");
-    expect(ops).toContain("Control plane ready");
+    expect(ops).toContain("Diagnostics & audit");
+    expect(ops).toContain("Management control plane");
     expect(ops).toContain("Metric label=\"Providers\"");
     expect(ops).toContain("Metric label=\"Model routes\"");
   });
