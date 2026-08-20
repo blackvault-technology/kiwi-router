@@ -342,4 +342,13 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 - [x] Add animated loading skeletons for the main admin content area and preserve actionable error/empty states.
 - [x] Add a quick sidebar search that filters operations sections and supports keyboard access.
 - [x] Add regression coverage, run TypeScript/tests, and verify desktop/mobile admin behavior.
-- [ ] Save a checkpoint for the admin comfort and navigation update.
+- [x] Save a checkpoint for the admin comfort and navigation update.
+
+## 2026-08-20 founder admin full revamp
+
+- [x] Audit the current provider, credential, model, route, policy, audit, and operational-status management surfaces for duplication and slow paths.
+- [x] Define a simpler management architecture with a focused command center, clear model/provider lifecycle actions, and safe archive/remove behavior.
+- [x] Improve model and provider management so founders can add, edit, test, enable, disable, synchronize, archive, and inspect routes quickly using real Neon-backed procedures.
+- [x] Improve credential, routing, policy, user, growth, and audit management presentation without removing existing controls or safety confirmations.
+- [x] Add regression coverage and verify loading, empty, error, confirmation, and responsive states for the revamped admin panel.
+- [ ] Save a checkpoint for the full founder admin revamp.

@@ -28,6 +28,15 @@ describe("founder control-center contract", () => {
     expect(consoleSource).toContain("for gateway routing?");
   });
 
+  it("provides fast management filters for providers and model routes", () => {
+    expect(consoleSource).toContain('aria-label="Filter providers"');
+    expect(consoleSource).toContain('aria-label="Filter model routes"');
+    expect(consoleSource).toContain("filteredProviders.map");
+    expect(consoleSource).toContain("filteredModels.map");
+    expect(consoleSource).toContain("Showing ${filteredModels.length} of ${models.length} routes");
+    expect(consoleSource).toContain("No model routes match this filter.");
+  });
+
   it("keeps the simplified guided-first information architecture", () => {
     expect(consoleSource).toContain("Recommended next move");
     expect(consoleSource).toContain("Advanced gateway safety policies");
