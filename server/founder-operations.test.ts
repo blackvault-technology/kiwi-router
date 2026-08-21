@@ -50,6 +50,20 @@ describe("founder operations application contracts", () => {
     expect(ops).toContain('filtered.map');
   });
 
+  it("exposes live security observability, evidence controls, and identity quick actions", () => {
+    const ops = read("client/src/components/FounderOperationsApp.tsx");
+    const observability = read("client/src/components/FounderSecurityObservability.tsx");
+    const quickActions = read("client/src/components/IdentityQuickActions.tsx");
+    expect(observability).toContain("refetchInterval: 15000");
+    expect(observability).toContain("Filter activity events");
+    expect(observability).toContain("Risk first");
+    expect(ops).toContain("Quick API-key action");
+    expect(quickActions).toContain("Revoke all keys");
+    expect(quickActions).toContain("Regenerate keys");
+    expect(quickActions).toContain("Copy secret");
+    expect(quickActions).toContain("It will not be shown again after closing this dialog.");
+  });
+
   it("exposes the founder security observability dashboard with safe real-data queries", () => {
     const ops = read("client/src/components/FounderOperationsApp.tsx");
     const observability = read("client/src/components/FounderSecurityObservability.tsx");

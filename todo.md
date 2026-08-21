@@ -417,4 +417,13 @@ The founder console reported `POST /api/trpc/admin.syncProviderModels?batch=1` r
 - [x] Remove the legacy Overview, Providers, Credentials, Catalog, Routing, Accounts, Economy, Safety, and Audit section model from frontend and backend composition.
 - [x] Implement the new founder control system with real Neon-backed workflows, preserved role boundaries, and safe confirmations.
 - [x] Add regression coverage and verify the replacement navigation, backend boundaries, loading/error states, and responsive behavior.
-- [ ] Save a checkpoint for the new founder control-system replacement.
+- [x] Save a checkpoint for the new founder control-system replacement.
+
+## 2026-08-20 control-system interaction upgrades
+
+- [x] Audit existing control snapshot, request-log, security-event, and API-key mutation contracts for the requested observability and quick actions.
+- [x] Add real-time visual charts to Command Pulse for gateway posture, request volume, errors, and usage signals using real Neon-backed data.
+- [x] Add advanced Evidence Room filtering and sorting for activity logs and security events with safe empty/error states.
+- [x] Add an Identity Control quick-action modal for guarded API-key revoke and regenerate flows with one-time secret handling.
+- [x] Add regression coverage and verify chart, filter, sorting, modal, and responsive states.
+- [ ] Save a checkpoint for the control-system interaction upgrades.
